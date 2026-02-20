@@ -7,6 +7,7 @@ import MasonryGrid from '@/components/feed/MasonryGrid'
 import CategoryFilterBar, { type CategoryId } from '@/components/feed/CategoryFilterBar'
 import { usePins } from '@/lib/hooks/usePins'
 import { createClient } from '@/lib/supabase/client'
+import type { Pin } from '@/types'
 
 const CATEGORY_TAG_MAP: Record<string, string> = {
   website: 'website', web: 'website', landing: 'website',
