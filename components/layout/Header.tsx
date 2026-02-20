@@ -41,19 +41,8 @@ function Logo() {
    NAV TABS
    ───────────────────────────────────────────────────────────── */
 function NavTabs({ pathname }: { pathname: string }) {
-  const [createOpen, setCreateOpen] = useState(false)
-  const createRef = useRef<HTMLDivElement>(null)
-
-  useEffect(() => {
-    if (!createOpen) return
-    const handler = (e: MouseEvent) => {
-      if (createRef.current && !createRef.current.contains(e.target as Node)) setCreateOpen(false)
-    }
-    document.addEventListener('mousedown', handler)
-    return () => document.removeEventListener('mousedown', handler)
-  }, [createOpen])
-
   const isHome = pathname === '/'
+  const isCreate = pathname === '/create' || pathname === '/upload'
 
   const tabBase: React.CSSProperties = {
     display: 'flex',
@@ -88,62 +77,19 @@ function NavTabs({ pathname }: { pathname: string }) {
         Home
       </Link>
 
-      {/* Create dropdown */}
-      <div ref={createRef} style={{ position: 'relative' }}>
-        <button
-          onClick={() => setCreateOpen(v => !v)}
-          style={{
-            ...tabBase,
-            gap: 6,
-            background: createOpen ? 'var(--surface-2)' : 'transparent',
-          }}
-          onMouseEnter={e => { if (!createOpen) (e.currentTarget as HTMLElement).style.background = 'var(--surface-2)' }}
-          onMouseLeave={e => { if (!createOpen) (e.currentTarget as HTMLElement).style.background = 'transparent' }}
-        >
-          Create
-          <svg
-            width="13" height="13" viewBox="0 0 24 24" fill="none"
-            stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round"
-            style={{ transition: 'transform 200ms', transform: createOpen ? 'rotate(180deg)' : 'rotate(0deg)' }}
-            aria-hidden="true"
-          >
-            <path d="m6 9 6 6 6-6"/>
-          </svg>
-        </button>
-
-        {createOpen && (
-          <div
-            className="animate-scale-in"
-            style={{
-              position: 'absolute',
-              left: 0,
-              top: 'calc(100% + 6px)',
-              zIndex: 50,
-              width: 176,
-              borderRadius: 14,
-              border: '1px solid var(--border)',
-              padding: 6,
-              background: 'var(--bg)',
-              boxShadow: 'var(--shadow-lg)',
-            }}
-          >
-            <Link href="/create" onClick={() => setCreateOpen(false)} className="menu-item">
-              <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true">
-                <circle cx="12" cy="12" r="10"/><path d="M12 8v8M8 12h8"/>
-              </svg>
-              Create pin
-            </Link>
-            <Link href="/upload" onClick={() => setCreateOpen(false)} className="menu-item">
-              <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true">
-                <path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/>
-                <polyline points="17 8 12 3 7 8"/>
-                <line x1="12" y1="3" x2="12" y2="15"/>
-              </svg>
-              Upload media
-            </Link>
-          </div>
-        )}
-      </div>
+      {/* Create — direct link */}
+      <Link
+        href="/create"
+        style={{
+          ...tabBase,
+          background: isCreate ? 'var(--text)' : 'transparent',
+          color: isCreate ? '#fff' : 'var(--text)',
+        }}
+        onMouseEnter={e => { if (!isCreate) (e.currentTarget as HTMLElement).style.background = 'var(--surface-2)' }}
+        onMouseLeave={e => { if (!isCreate) (e.currentTarget as HTMLElement).style.background = 'transparent' }}
+      >
+        Create
+      </Link>
     </nav>
   )
 }
