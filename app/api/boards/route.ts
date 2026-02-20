@@ -68,7 +68,7 @@ export async function POST(request: NextRequest) {
 
   const parsed = createBoardSchema.safeParse(body)
   if (!parsed.success) {
-    const first = parsed.error.errors[0]
+    const first = parsed.error.issues[0]
     return errorResponse(first?.message ?? 'Invalid input')
   }
 

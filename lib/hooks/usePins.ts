@@ -6,8 +6,8 @@ import type { Pin, Tag } from '@/types'
 
 const PAGE_SIZE = 20
 
-export function usePins() {
-  const [pins, setPins] = useState<Pin[]>([])
+export function usePins(options?: { initialPins?: Pin[] }) {
+  const [pins, setPins] = useState<Pin[]>(options?.initialPins ?? [])
   const [loading, setLoading] = useState(false)
   const [hasMore, setHasMore] = useState(true)
   const [error, setError] = useState<string | null>(null)
@@ -90,5 +90,9 @@ export function usePins() {
     fetchPage()
   }, []) // eslint-disable-line react-hooks/exhaustive-deps
 
-  return { pins, loading, hasMore, error, fetchNextPage: fetchPage }
+  function removePin(id: string) {
+    setPins(prev => prev.filter(p => p.id !== id))
+  }
+
+  return { pins, loading, hasMore, error, fetchNextPage: fetchPage, removePin }
 }

@@ -36,7 +36,7 @@ export async function POST(request: NextRequest) {
 
   const parsed = savePinSchema.safeParse(body)
   if (!parsed.success) {
-    const first = parsed.error.errors[0]
+    const first = parsed.error.issues[0]
     return errorResponse(first?.message ?? 'Invalid input')
   }
 
@@ -98,7 +98,7 @@ export async function DELETE(request: NextRequest) {
 
   const parsed = removePinSchema.safeParse(body)
   if (!parsed.success) {
-    const first = parsed.error.errors[0]
+    const first = parsed.error.issues[0]
     return errorResponse(first?.message ?? 'Invalid input')
   }
 

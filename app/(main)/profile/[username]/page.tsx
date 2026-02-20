@@ -246,6 +246,10 @@ export default async function ProfilePage({ params }: Props) {
   const profile = await getProfile(username)
   if (!profile) notFound()
 
+  const supabase = await createClient()
+  const { data: { user: currentUser } } = await supabase.auth.getUser()
+  const isOwnProfile = currentUser?.id === profile.id
+
   const [pins, boards] = await Promise.all([
     getProfilePins(profile.id),
     getPublicBoards(profile.id),
@@ -302,7 +306,7 @@ export default async function ProfilePage({ params }: Props) {
         {/* Using simple server-side approach: show both sections and let user scroll */}
         {/* For full client tab behavior, a 'use client' wrapper would be needed */}
 
-        <ProfileTabs pins={pins} boards={boards} />
+        <ProfileTabs pins={pins} boards={boards} isOwnProfile={isOwnProfile} />
       </div>
     </main>
   )

@@ -100,7 +100,7 @@ export async function POST(request: NextRequest) {
 
   const parsed = createPinSchema.safeParse(rawFields)
   if (!parsed.success) {
-    const first = parsed.error.errors[0]
+    const first = parsed.error.issues[0]
     return errorResponse(first?.message ?? 'Invalid input')
   }
 
@@ -113,18 +113,27 @@ export async function POST(request: NextRequest) {
 
   try {
     mediaUrl = await uploadFile(supabase, mediaFile, mediaPath, mediaFile.type)
-  } catch {
-    return errorResponse('Media upload failed. Please try again.', 500)
+  } catch (err) {
+    const msg = err instanceof Error ? err.message : String(err)
+    console.error('[api/pins] media upload error:', msg)
+    return errorResponse(
+      process.env.NODE_ENV === 'development' ? msg : 'Media upload failed. Please try again.',
+      500
+    )
   }
 
   if (needsThumbnail && thumbnailFile) {
     const thumbPath = generateStoragePath(user.id, `thumb-${thumbnailFile.name}`)
     try {
       thumbnailUrl = await uploadFile(supabase, thumbnailFile, thumbPath, thumbnailFile.type)
-    } catch {
-      // Clean up the already-uploaded media file before returning
+    } catch (err) {
+      const msg = err instanceof Error ? err.message : String(err)
+      console.error('[api/pins] thumbnail upload error:', msg)
       await supabase.storage.from(BUCKET).remove([mediaPath])
-      return errorResponse('Thumbnail upload failed. Please try again.', 500)
+      return errorResponse(
+        process.env.NODE_ENV === 'development' ? msg : 'Thumbnail upload failed. Please try again.',
+        500
+      )
     }
   } else {
     // For image pins, the media IS the thumbnail
@@ -149,6 +158,7 @@ export async function POST(request: NextRequest) {
     .single()
 
   if (insertError || !pin) {
+    console.error('[api/pins] insert error:', insertError)
     // Best-effort cleanup of orphaned storage objects
     await supabase.storage.from(BUCKET).remove([mediaPath])
     return errorResponse('Failed to save pin. Please try again.', 500)

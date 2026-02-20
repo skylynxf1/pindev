@@ -16,12 +16,20 @@ import type { User } from '@supabase/supabase-js'
    ───────────────────────────────────────────────────────────── */
 function Logo() {
   return (
-    <Link href="/" className="flex-shrink-0" aria-label="PinDev — home">
+    <Link href="/" aria-label="PinDev — home" style={{ flexShrink: 0 }}>
       <div
-        className="flex h-9 w-9 items-center justify-center rounded-full"
-        style={{ background: 'var(--menthe)', boxShadow: '0 2px 8px rgb(53 200 180 / .35)' }}
+        style={{
+          width: 38,
+          height: 38,
+          borderRadius: '50%',
+          background: 'var(--menthe)',
+          boxShadow: '0 2px 8px rgb(53 200 180 / .35)',
+          display: 'flex',
+          alignItems: 'center',
+          justifyContent: 'center',
+        }}
       >
-        <span className="text-white font-extrabold text-lg leading-none" style={{ letterSpacing: '-0.05em' }}>
+        <span style={{ color: '#fff', fontWeight: 800, fontSize: '1.125rem', letterSpacing: '-0.05em', lineHeight: 1 }}>
           P
         </span>
       </div>
@@ -47,13 +55,30 @@ function NavTabs({ pathname }: { pathname: string }) {
 
   const isHome = pathname === '/'
 
+  const tabBase: React.CSSProperties = {
+    display: 'flex',
+    alignItems: 'center',
+    height: 38,
+    padding: '0 16px',
+    borderRadius: 9999,
+    fontSize: '0.9rem',
+    fontWeight: 600,
+    cursor: 'pointer',
+    border: 'none',
+    background: 'transparent',
+    transition: 'background 120ms',
+    whiteSpace: 'nowrap',
+    textDecoration: 'none',
+    color: 'var(--text)',
+  }
+
   return (
-    <nav className="hidden sm:flex items-center gap-0.5" aria-label="Main navigation">
+    <nav style={{ display: 'flex', alignItems: 'center', gap: 2 }} aria-label="Main navigation">
       {/* Home */}
       <Link
         href="/"
-        className="flex items-center h-9 px-4 rounded-full text-sm font-semibold transition-all duration-150 select-none"
         style={{
+          ...tabBase,
           background: isHome ? 'var(--text)' : 'transparent',
           color: isHome ? '#fff' : 'var(--text)',
         }}
@@ -63,24 +88,13 @@ function NavTabs({ pathname }: { pathname: string }) {
         Home
       </Link>
 
-      {/* Explore */}
-      <Link
-        href="/search"
-        className="flex items-center h-9 px-4 rounded-full text-sm font-semibold transition-all duration-150 select-none"
-        style={{ color: 'var(--text)', background: 'transparent' }}
-        onMouseEnter={e => { (e.currentTarget as HTMLElement).style.background = 'var(--surface-2)' }}
-        onMouseLeave={e => { (e.currentTarget as HTMLElement).style.background = 'transparent' }}
-      >
-        Explore
-      </Link>
-
       {/* Create dropdown */}
-      <div ref={createRef} className="relative">
+      <div ref={createRef} style={{ position: 'relative' }}>
         <button
           onClick={() => setCreateOpen(v => !v)}
-          className="flex items-center gap-1.5 h-9 px-4 rounded-full text-sm font-semibold transition-all duration-150 select-none"
           style={{
-            color: 'var(--text)',
+            ...tabBase,
+            gap: 6,
             background: createOpen ? 'var(--surface-2)' : 'transparent',
           }}
           onMouseEnter={e => { if (!createOpen) (e.currentTarget as HTMLElement).style.background = 'var(--surface-2)' }}
@@ -88,10 +102,9 @@ function NavTabs({ pathname }: { pathname: string }) {
         >
           Create
           <svg
-            width="12" height="12" viewBox="0 0 24 24" fill="none"
+            width="13" height="13" viewBox="0 0 24 24" fill="none"
             stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round"
-            className="transition-transform duration-200"
-            style={{ transform: createOpen ? 'rotate(180deg)' : 'rotate(0deg)' }}
+            style={{ transition: 'transform 200ms', transform: createOpen ? 'rotate(180deg)' : 'rotate(0deg)' }}
             aria-hidden="true"
           >
             <path d="m6 9 6 6 6-6"/>
@@ -100,22 +113,28 @@ function NavTabs({ pathname }: { pathname: string }) {
 
         {createOpen && (
           <div
-            className="animate-scale-in absolute left-0 z-50 mt-1.5 w-44 rounded-xl border p-1.5"
+            className="animate-scale-in"
             style={{
+              position: 'absolute',
+              left: 0,
+              top: 'calc(100% + 6px)',
+              zIndex: 50,
+              width: 176,
+              borderRadius: 14,
+              border: '1px solid var(--border)',
+              padding: 6,
               background: 'var(--bg)',
-              borderColor: 'var(--border)',
               boxShadow: 'var(--shadow-lg)',
-              top: '100%',
             }}
           >
             <Link href="/create" onClick={() => setCreateOpen(false)} className="menu-item">
-              <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true">
+              <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true">
                 <circle cx="12" cy="12" r="10"/><path d="M12 8v8M8 12h8"/>
               </svg>
               Create pin
             </Link>
             <Link href="/upload" onClick={() => setCreateOpen(false)} className="menu-item">
-              <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true">
+              <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true">
                 <path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/>
                 <polyline points="17 8 12 3 7 8"/>
                 <line x1="12" y1="3" x2="12" y2="15"/>
@@ -173,13 +192,23 @@ function SearchBar({ autoFocus = false, onSubmit }: { autoFocus?: boolean; onSub
   }
 
   return (
-    <div className="relative w-full">
+    <div style={{ position: 'relative', width: '100%' }}>
+      {/* Search icon */}
       <span
-        className="pointer-events-none absolute left-4 top-1/2 -translate-y-1/2 transition-colors duration-150"
-        style={{ color: isFocused ? 'var(--menthe)' : 'var(--muted-light)' }}
+        style={{
+          position: 'absolute',
+          left: 16,
+          top: '50%',
+          transform: 'translateY(-50%)',
+          color: isFocused ? 'var(--menthe)' : 'var(--muted-light)',
+          pointerEvents: 'none',
+          transition: 'color 150ms',
+          display: 'flex',
+          alignItems: 'center',
+        }}
         aria-hidden="true"
       >
-        <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.3" strokeLinecap="round" strokeLinejoin="round">
+        <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.2" strokeLinecap="round" strokeLinejoin="round">
           <circle cx="11" cy="11" r="8"/><path d="m21 21-4.35-4.35"/>
         </svg>
       </span>
@@ -188,7 +217,12 @@ function SearchBar({ autoFocus = false, onSubmit }: { autoFocus?: boolean; onSub
         ref={inputRef}
         type="search"
         className="search-input"
-        style={{ paddingLeft: '2.75rem', paddingRight: value ? '2.5rem' : '1rem', height: '40px' }}
+        style={{
+          paddingLeft: '2.75rem',
+          paddingRight: value ? '2.5rem' : '1rem',
+          height: 42,
+          fontSize: '0.9rem',
+        }}
         value={value}
         placeholder="Search for website designs, app mockups..."
         aria-label="Search PinDev"
@@ -203,15 +237,75 @@ function SearchBar({ autoFocus = false, onSubmit }: { autoFocus?: boolean; onSub
           type="button"
           onMouseDown={handleClear}
           aria-label="Clear search"
-          className="absolute right-3.5 top-1/2 -translate-y-1/2 flex h-5 w-5 items-center justify-center rounded-full transition-colors duration-150"
-          style={{ background: 'var(--surface-2)', color: 'var(--muted)' }}
+          style={{
+            position: 'absolute',
+            right: 12,
+            top: '50%',
+            transform: 'translateY(-50%)',
+            width: 20,
+            height: 20,
+            borderRadius: '50%',
+            background: 'var(--surface-2)',
+            color: 'var(--muted)',
+            border: 'none',
+            cursor: 'pointer',
+            display: 'flex',
+            alignItems: 'center',
+            justifyContent: 'center',
+          }}
         >
-          <svg width="8" height="8" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="3" strokeLinecap="round" aria-hidden="true">
+          <svg width="8" height="8" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="3" strokeLinecap="round">
             <path d="M18 6 6 18M6 6l12 12"/>
           </svg>
         </button>
       )}
     </div>
+  )
+}
+
+/* ─────────────────────────────────────────────────────────────
+   ICON BUTTON (Bell / Chat)
+   ───────────────────────────────────────────────────────────── */
+function IconBtn({ label, children, badge }: { label: string; children: React.ReactNode; badge?: boolean }) {
+  const [hovered, setHovered] = useState(false)
+  return (
+    <button
+      aria-label={label}
+      onMouseEnter={() => setHovered(true)}
+      onMouseLeave={() => setHovered(false)}
+      style={{
+        position: 'relative',
+        width: 38,
+        height: 38,
+        borderRadius: 10,
+        border: 'none',
+        background: hovered ? 'var(--surface-2)' : 'transparent',
+        cursor: 'pointer',
+        display: 'flex',
+        alignItems: 'center',
+        justifyContent: 'center',
+        color: 'var(--muted)',
+        transition: 'background 120ms',
+        flexShrink: 0,
+      }}
+    >
+      {children}
+      {badge && (
+        <span
+          aria-hidden="true"
+          style={{
+            position: 'absolute',
+            top: 7,
+            right: 7,
+            width: 7,
+            height: 7,
+            borderRadius: '50%',
+            background: '#f05252',
+            boxShadow: '0 0 0 1.5px white',
+          }}
+        />
+      )}
+    </button>
   )
 }
 
@@ -265,55 +359,78 @@ function AvatarMenu({ user }: { user: User }) {
   const initials = name.slice(0, 2).toUpperCase()
 
   return (
-    <div ref={wrapRef} className="relative">
+    <div ref={wrapRef} style={{ position: 'relative', display: 'flex', alignItems: 'center', gap: 2 }}>
+      {/* Avatar circle */}
+      <div
+        className="avatar"
+        style={{
+          width: 34,
+          height: 34,
+          fontSize: '.75rem',
+          cursor: 'pointer',
+          outline: open ? '2px solid var(--menthe)' : '2px solid transparent',
+          outlineOffset: 2,
+          transition: 'outline-color 150ms',
+        }}
+        onClick={() => setOpen(v => !v)}
+      >
+        {profile?.avatar_url ? (
+          // eslint-disable-next-line @next/next/no-img-element
+          <img src={profile.avatar_url} alt={name} style={{ width: '100%', height: '100%', objectFit: 'cover' }} />
+        ) : (
+          initials
+        )}
+      </div>
+
+      {/* Chevron */}
       <button
         onClick={() => setOpen(v => !v)}
         aria-label="Account menu"
         aria-expanded={open}
         aria-haspopup="menu"
-        className="flex items-center gap-1.5 rounded-full transition-all duration-150"
         style={{
-          padding: '3px 6px 3px 3px',
-          background: open ? 'var(--surface-2)' : 'transparent',
-          outline: open ? '2px solid var(--menthe)' : '2px solid transparent',
-          outlineOffset: '0px',
+          background: 'transparent',
+          border: 'none',
+          cursor: 'pointer',
+          padding: '4px 2px',
+          display: 'flex',
+          alignItems: 'center',
+          color: 'var(--muted)',
         }}
       >
-        <div className="avatar" style={{ width: 32, height: 32, fontSize: '.75rem' }}>
-          {profile?.avatar_url ? (
-            // eslint-disable-next-line @next/next/no-img-element
-            <img src={profile.avatar_url} alt={name} className="h-full w-full object-cover" />
-          ) : (
-            initials
-          )}
-        </div>
         <svg
-          width="12" height="12" viewBox="0 0 24 24" fill="none"
-          stroke="var(--muted)" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round"
-          className="transition-transform duration-200"
-          style={{ transform: open ? 'rotate(180deg)' : 'rotate(0deg)' }}
+          width="13" height="13" viewBox="0 0 24 24" fill="none"
+          stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round"
+          style={{ transition: 'transform 200ms', transform: open ? 'rotate(180deg)' : 'rotate(0deg)' }}
           aria-hidden="true"
         >
           <path d="m6 9 6 6 6-6"/>
         </svg>
       </button>
 
+      {/* Dropdown */}
       {open && (
         <div
           role="menu"
-          aria-label="Account options"
-          className="animate-scale-in absolute right-0 z-50 mt-2 w-52 rounded-xl border p-1.5"
+          className="animate-scale-in"
           style={{
+            position: 'absolute',
+            right: 0,
+            top: 'calc(100% + 8px)',
+            zIndex: 50,
+            width: 210,
+            borderRadius: 14,
+            border: '1px solid var(--border)',
+            padding: 6,
             background: 'var(--bg)',
-            borderColor: 'var(--border)',
             boxShadow: 'var(--shadow-lg)',
-            top: '100%',
           }}
         >
-          <div className="mb-1 rounded-lg px-3 py-2.5" style={{ background: 'var(--surface)' }}>
-            <p className="text-sm font-semibold truncate" style={{ color: 'var(--text)' }}>{name}</p>
+          {/* Profile snippet */}
+          <div style={{ background: 'var(--surface)', borderRadius: 10, padding: '10px 12px', marginBottom: 4 }}>
+            <p style={{ fontSize: '.875rem', fontWeight: 600, color: 'var(--text)', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{name}</p>
             {profile?.username && (
-              <p className="text-xs truncate" style={{ color: 'var(--muted)' }}>@{profile.username}</p>
+              <p style={{ fontSize: '.75rem', color: 'var(--muted)', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>@{profile.username}</p>
             )}
           </div>
 
@@ -322,6 +439,16 @@ function AvatarMenu({ user }: { user: User }) {
               href: profile?.username ? `/profile/${profile.username}` : '/',
               label: 'My profile',
               icon: <><path d="M20 21v-2a4 4 0 0 0-4-4H8a4 4 0 0 0-4 4v2"/><circle cx="12" cy="7" r="4"/></>,
+            },
+            {
+              href: '/saved',
+              label: 'Saved pins',
+              icon: <><path d="M19 21l-7-5-7 5V5a2 2 0 0 1 2-2h10a2 2 0 0 1 2 2z"/></>,
+            },
+            {
+              href: '/create',
+              label: 'Create pin',
+              icon: <><circle cx="12" cy="12" r="10"/><path d="M12 8v8M8 12h8"/></>,
             },
             {
               href: '/settings/profile',
@@ -337,7 +464,7 @@ function AvatarMenu({ user }: { user: User }) {
             </Link>
           ))}
 
-          <div className="my-1.5 h-px" style={{ background: 'var(--border)' }} role="separator"/>
+          <div style={{ height: 1, background: 'var(--border)', margin: '6px 0' }} role="separator"/>
 
           <button onClick={signOut} role="menuitem" className="menu-item danger">
             <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true">
@@ -358,11 +485,11 @@ function AvatarMenu({ user }: { user: User }) {
    ───────────────────────────────────────────────────────────── */
 function AuthButtons() {
   return (
-    <div className="flex items-center gap-2">
-      <Link href="/login" className="btn btn-ghost" style={{ padding: '.4375rem 1rem' }}>
+    <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
+      <Link href="/login" className="btn btn-ghost" style={{ padding: '7px 18px' }}>
         Sign in
       </Link>
-      <Link href="/signup" className="btn btn-primary" style={{ padding: '.4375rem 1rem' }}>
+      <Link href="/signup" className="btn btn-primary" style={{ padding: '7px 18px' }}>
         Join free
       </Link>
     </div>
@@ -375,11 +502,16 @@ function AuthButtons() {
 function MobileSearchDrawer({ onClose }: { onClose: () => void }) {
   return (
     <div
-      className="animate-fade-in fixed inset-x-0 z-30 border-b px-4 py-3 sm:hidden"
+      className="animate-fade-in"
       style={{
+        position: 'fixed',
+        left: 0,
+        right: 0,
         top: 'var(--header-h)',
+        zIndex: 30,
+        padding: '12px 16px',
         background: 'var(--bg)',
-        borderColor: 'var(--border)',
+        borderBottom: '1px solid var(--border)',
         boxShadow: 'var(--shadow-md)',
       }}
       role="search"
@@ -398,7 +530,16 @@ export default function Header() {
   const [user, setUser] = useState<User | null>(null)
   const [authReady, setAuthReady] = useState(false)
   const [mobileSearch, setMobileSearch] = useState(false)
+  const [isMobile, setIsMobile] = useState(false)
   const supabase = createClient()
+
+  // Detect mobile via JS (avoids Tailwind responsive class issues)
+  useEffect(() => {
+    const check = () => setIsMobile(window.innerWidth < 640)
+    check()
+    window.addEventListener('resize', check)
+    return () => window.removeEventListener('resize', check)
+  }, [])
 
   useEffect(() => {
     supabase.auth.getUser().then(({ data }) => {
@@ -431,85 +572,64 @@ export default function Header() {
     <>
       <header
         role="banner"
-        className="glass-header fixed inset-x-0 top-0 z-40"
-        style={{ height: 'var(--header-h)' }}
+        className="glass-header"
+        style={{ position: 'fixed', left: 0, right: 0, top: 0, zIndex: 40, height: 'var(--header-h)' }}
       >
-        <div className="mx-auto flex h-full max-w-[1800px] items-center gap-3 px-4 sm:px-6">
+        <div
+          style={{
+            maxWidth: 1800,
+            margin: '0 auto',
+            height: '100%',
+            display: 'flex',
+            alignItems: 'center',
+            gap: 12,
+            padding: '0 24px',
+          }}
+        >
           {/* Logo */}
           <Logo />
 
-          {/* Nav tabs */}
-          <NavTabs pathname={pathname} />
+          {/* Nav tabs — desktop only */}
+          {!isMobile && <NavTabs pathname={pathname} />}
 
-          {/* Search — desktop */}
-          <div className="hidden sm:flex flex-1 max-w-2xl">
-            <SearchBar />
-          </div>
+          {/* Search bar — desktop */}
+          {!isMobile && (
+            <div style={{ flex: 1, maxWidth: 680 }}>
+              <SearchBar />
+            </div>
+          )}
 
           {/* Right rail */}
-          <div className="ml-auto flex items-center gap-1.5">
-            {/* Mobile search toggle */}
-            <button
-              className="btn-icon btn sm:hidden"
-              onClick={() => setMobileSearch(v => !v)}
-              aria-label={mobileSearch ? 'Close search' : 'Open search'}
-              aria-expanded={mobileSearch}
-              style={{
-                background: mobileSearch ? 'var(--menthe-light)' : 'transparent',
-                borderColor: mobileSearch ? 'var(--menthe)' : 'var(--border)',
-                color: mobileSearch ? 'var(--menthe)' : 'var(--muted)',
-              }}
-            >
-              {mobileSearch ? (
-                <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" aria-hidden="true">
-                  <path d="M18 6 6 18M6 6l12 12"/>
-                </svg>
-              ) : (
-                <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.3" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true">
+          <div style={{ marginLeft: 'auto', display: 'flex', alignItems: 'center', gap: 4 }}>
+            {/* Mobile: search icon toggle */}
+            {isMobile && (
+              <button
+                onClick={() => setMobileSearch(v => !v)}
+                aria-label={mobileSearch ? 'Close search' : 'Open search'}
+                style={{
+                  width: 38, height: 38,
+                  borderRadius: 10,
+                  border: '1.5px solid var(--border)',
+                  background: mobileSearch ? 'var(--menthe-light)' : 'transparent',
+                  color: mobileSearch ? 'var(--menthe)' : 'var(--muted)',
+                  cursor: 'pointer',
+                  display: 'flex', alignItems: 'center', justifyContent: 'center',
+                }}
+              >
+                <svg width="17" height="17" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.3" strokeLinecap="round" strokeLinejoin="round">
                   <circle cx="11" cy="11" r="8"/><path d="m21 21-4.35-4.35"/>
                 </svg>
-              )}
-            </button>
+              </button>
+            )}
 
+            {/* Auth area */}
             {!authReady ? (
-              <div className="flex items-center gap-2">
-                <div className="skeleton h-8 w-16 rounded-full" />
-                <div className="skeleton h-8 w-8 rounded-full" />
+              <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
+                <div className="skeleton" style={{ height: 34, width: 64, borderRadius: 9999 }} />
+                <div className="skeleton" style={{ height: 34, width: 34, borderRadius: '50%' }} />
               </div>
             ) : user ? (
               <>
-                {/* Bell */}
-                <button
-                  className="hidden sm:flex items-center justify-center relative transition-colors duration-150 rounded-lg"
-                  aria-label="Notifications"
-                  style={{ width: 36, height: 36, background: 'transparent', border: 'none', cursor: 'pointer' }}
-                  onMouseEnter={e => { (e.currentTarget as HTMLElement).style.background = 'var(--surface-2)' }}
-                  onMouseLeave={e => { (e.currentTarget as HTMLElement).style.background = 'transparent' }}
-                >
-                  <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="var(--muted)" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true">
-                    <path d="M18 8A6 6 0 0 0 6 8c0 7-3 9-3 9h18s-3-2-3-9"/>
-                    <path d="M13.73 21a2 2 0 0 1-3.46 0"/>
-                  </svg>
-                  <span
-                    className="absolute top-1.5 right-1.5 h-2 w-2 rounded-full"
-                    style={{ background: '#f05252', boxShadow: '0 0 0 1.5px white' }}
-                    aria-hidden="true"
-                  />
-                </button>
-
-                {/* Chat */}
-                <button
-                  className="hidden sm:flex items-center justify-center transition-colors duration-150 rounded-lg"
-                  aria-label="Messages"
-                  style={{ width: 36, height: 36, background: 'transparent', border: 'none', cursor: 'pointer' }}
-                  onMouseEnter={e => { (e.currentTarget as HTMLElement).style.background = 'var(--surface-2)' }}
-                  onMouseLeave={e => { (e.currentTarget as HTMLElement).style.background = 'transparent' }}
-                >
-                  <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="var(--muted)" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true">
-                    <path d="M21 15a2 2 0 0 1-2 2H7l-4 4V5a2 2 0 0 1 2-2h14a2 2 0 0 1 2 2z"/>
-                  </svg>
-                </button>
-
                 <AvatarMenu user={user} />
               </>
             ) : (

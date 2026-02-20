@@ -13,7 +13,7 @@ const CATEGORIES: Category[] = [
     id: 'all',
     label: 'All',
     icon: (
-      <svg width="13" height="13" viewBox="0 0 24 24" fill="currentColor" aria-hidden="true">
+      <svg width="15" height="15" viewBox="0 0 24 24" fill="currentColor" aria-hidden="true">
         <path d="M12 2l3.09 6.26L22 9.27l-5 4.87 1.18 6.88L12 17.77l-6.18 3.25L7 14.14 2 9.27l6.91-1.01L12 2z"/>
       </svg>
     ),
@@ -22,8 +22,8 @@ const CATEGORIES: Category[] = [
     id: 'website',
     label: 'Websites',
     icon: (
-      <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true">
-        <rect x="2" y="3" width="20" height="14" rx="2" ry="2"/>
+      <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true">
+        <rect x="2" y="3" width="20" height="14" rx="2"/>
         <line x1="8" y1="21" x2="16" y2="21"/>
         <line x1="12" y1="17" x2="12" y2="21"/>
       </svg>
@@ -33,9 +33,9 @@ const CATEGORIES: Category[] = [
     id: 'app',
     label: 'Apps',
     icon: (
-      <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true">
-        <rect x="5" y="2" width="14" height="20" rx="2" ry="2"/>
-        <line x1="12" y1="18" x2="12.01" y2="18"/>
+      <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true">
+        <rect x="5" y="2" width="14" height="20" rx="2"/>
+        <circle cx="12" cy="17" r="1" fill="currentColor"/>
       </svg>
     ),
   },
@@ -43,7 +43,7 @@ const CATEGORIES: Category[] = [
     id: 'ai-tool',
     label: 'AI Tools',
     icon: (
-      <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true">
+      <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true">
         <path d="M12 2L2 7l10 5 10-5-10-5z"/>
         <path d="M2 17l10 5 10-5"/>
         <path d="M2 12l10 5 10-5"/>
@@ -54,7 +54,7 @@ const CATEGORIES: Category[] = [
     id: 'vibecoding',
     label: 'VibeCoding',
     icon: (
-      <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true">
+      <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true">
         <polyline points="16 18 22 12 16 6"/>
         <polyline points="8 6 2 12 8 18"/>
       </svg>
@@ -70,10 +70,18 @@ interface CategoryFilterBarProps {
 export default function CategoryFilterBar({ active, onChange }: CategoryFilterBarProps) {
   return (
     <div
-      className="flex items-center gap-2 overflow-x-auto no-scrollbar py-3 border-b"
-      style={{ borderColor: 'var(--border)' }}
       role="tablist"
       aria-label="Filter by category"
+      style={{
+        display: 'flex',
+        alignItems: 'center',
+        gap: 8,
+        padding: '12px 0',
+        borderBottom: '1px solid var(--border)',
+        overflowX: 'auto',
+        msOverflowStyle: 'none',
+        scrollbarWidth: 'none',
+      }}
     >
       {CATEGORIES.map(cat => {
         const isActive = cat.id === active
@@ -83,22 +91,36 @@ export default function CategoryFilterBar({ active, onChange }: CategoryFilterBa
             role="tab"
             aria-selected={isActive}
             onClick={() => onChange(cat.id)}
-            className="flex items-center gap-1.5 px-3.5 py-1.5 rounded-full text-xs font-semibold flex-shrink-0 transition-all duration-150"
             style={{
+              display: 'flex',
+              alignItems: 'center',
+              gap: 7,
+              padding: '8px 16px',
+              borderRadius: 9999,
+              fontSize: '0.8125rem',
+              fontWeight: 600,
+              flexShrink: 0,
+              cursor: 'pointer',
+              transition: 'all 140ms',
+              border: `1.5px solid ${isActive ? 'var(--text)' : 'var(--border)'}`,
               background: isActive ? 'var(--text)' : 'var(--bg)',
               color: isActive ? '#fff' : 'var(--text)',
-              border: `1.5px solid ${isActive ? 'var(--text)' : 'var(--border)'}`,
+              userSelect: 'none',
             }}
             onMouseEnter={e => {
               if (!isActive) {
-                (e.currentTarget as HTMLElement).style.borderColor = 'var(--menthe)'
-                ;(e.currentTarget as HTMLElement).style.color = 'var(--menthe)'
+                const el = e.currentTarget as HTMLElement
+                el.style.borderColor = 'var(--menthe)'
+                el.style.color = 'var(--menthe)'
+                el.style.background = 'var(--menthe-light)'
               }
             }}
             onMouseLeave={e => {
               if (!isActive) {
-                (e.currentTarget as HTMLElement).style.borderColor = 'var(--border)'
-                ;(e.currentTarget as HTMLElement).style.color = 'var(--text)'
+                const el = e.currentTarget as HTMLElement
+                el.style.borderColor = 'var(--border)'
+                el.style.color = 'var(--text)'
+                el.style.background = 'var(--bg)'
               }
             }}
           >
@@ -109,15 +131,37 @@ export default function CategoryFilterBar({ active, onChange }: CategoryFilterBa
       })}
 
       {/* Spacer */}
-      <div className="flex-1 min-w-2" aria-hidden="true" />
+      <div style={{ flex: 1, minWidth: 8 }} aria-hidden="true" />
 
-      {/* Filter/sort icon */}
+      {/* Filter icon */}
       <button
-        className="flex-shrink-0 flex items-center justify-center h-8 w-8 rounded-lg transition-colors duration-150"
         aria-label="Filter options"
-        style={{ color: 'var(--muted)', background: 'transparent', border: 'none', cursor: 'pointer' }}
-        onMouseEnter={e => { (e.currentTarget as HTMLElement).style.background = 'var(--surface-2)' }}
-        onMouseLeave={e => { (e.currentTarget as HTMLElement).style.background = 'transparent' }}
+        style={{
+          flexShrink: 0,
+          width: 36,
+          height: 36,
+          borderRadius: 9,
+          border: '1.5px solid var(--border)',
+          background: 'var(--bg)',
+          color: 'var(--muted)',
+          cursor: 'pointer',
+          display: 'flex',
+          alignItems: 'center',
+          justifyContent: 'center',
+          transition: 'all 140ms',
+        }}
+        onMouseEnter={e => {
+          const el = e.currentTarget as HTMLElement
+          el.style.background = 'var(--surface-2)'
+          el.style.borderColor = 'var(--menthe)'
+          el.style.color = 'var(--menthe)'
+        }}
+        onMouseLeave={e => {
+          const el = e.currentTarget as HTMLElement
+          el.style.background = 'var(--bg)'
+          el.style.borderColor = 'var(--border)'
+          el.style.color = 'var(--muted)'
+        }}
       >
         <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true">
           <line x1="21" y1="4" x2="14" y2="4"/>

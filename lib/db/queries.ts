@@ -132,7 +132,7 @@ export async function searchPins(
 
     if (error) throw new Error(error.message)
 
-    const rows = (data ?? []) as Record<string, unknown>[]
+    const rows = (data ?? []) as unknown as Record<string, unknown>[]
 
     // When filtering by tag we need to post-filter: because pin_tags is a
     // joined table, Supabase doesn't restrict the parent row — it only
@@ -220,7 +220,7 @@ export async function getPinById(
 
     if (error || !data) return { data: null, error: 'Pin not found' }
 
-    return { data: normalisePin(data as Record<string, unknown>), error: null }
+    return { data: normalisePin(data as unknown as Record<string, unknown>), error: null }
   } catch (err) {
     return {
       data: null,
@@ -253,7 +253,7 @@ export async function getProfilePins(
     if (error) throw new Error(error.message)
 
     return {
-      data: ((data ?? []) as Record<string, unknown>[]).map(normalisePin),
+      data: ((data ?? []) as unknown as Record<string, unknown>[]).map(normalisePin),
       error: null,
     }
   } catch (err) {
