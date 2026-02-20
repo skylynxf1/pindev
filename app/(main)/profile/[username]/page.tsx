@@ -4,6 +4,7 @@ import Link from 'next/link'
 import type { Metadata } from 'next'
 import { createClient } from '@/lib/supabase/server'
 import type { Pin, Board, Profile } from '@/types'
+import ProfileTabs from '@/components/profile/ProfileTabs'
 
 interface Props {
   params: Promise<{ username: string }>
@@ -100,144 +101,6 @@ export async function generateMetadata({ params }: Props): Promise<Metadata> {
   }
 }
 
-// ── Sub-components ────────────────────────────────────────────────────────────
-
-function PinGrid({ pins }: { pins: Pin[] }) {
-  if (pins.length === 0) {
-    return (
-      <div className="flex flex-col items-center justify-center py-20 text-center">
-        <div className="mb-4 flex h-14 w-14 items-center justify-center rounded-full bg-[#C2F2E4]">
-          <svg
-            width="24"
-            height="24"
-            viewBox="0 0 24 24"
-            fill="none"
-            stroke="#35C8B4"
-            strokeWidth="2"
-            strokeLinecap="round"
-            strokeLinejoin="round"
-          >
-            <rect x="3" y="3" width="18" height="18" rx="3" />
-            <circle cx="8.5" cy="8.5" r="1.5" />
-            <polyline points="21 15 16 10 5 21" />
-          </svg>
-        </div>
-        <p className="text-base font-semibold text-[#0F1720]">No pins yet</p>
-        <p className="mt-1 text-sm text-[#5B6B73]">
-          Projects shared here will appear on this profile.
-        </p>
-      </div>
-    )
-  }
-
-  return (
-    <div className="columns-2 sm:columns-3 md:columns-4 lg:columns-5 gap-3">
-      {pins.map((pin) => (
-        <div key={pin.id} className="mb-3 break-inside-avoid">
-          <Link href={`/pin/${pin.id}`} scroll={false}>
-            <div className="group relative overflow-hidden rounded-2xl border border-[#E6ECEA] bg-white shadow-sm hover:shadow-md transition-shadow">
-              <Image
-                src={pin.thumbnail_url}
-                alt={pin.title || 'Project preview'}
-                width={400}
-                height={300}
-                className="w-full h-auto object-cover"
-                unoptimized
-              />
-              {pin.media_type === 'video' && (
-                <span className="absolute bottom-2 left-2 rounded-full bg-black/60 px-2 py-0.5 text-[10px] font-medium text-white">
-                  VIDEO
-                </span>
-              )}
-              <div className="absolute inset-0 bg-black/0 group-hover:bg-black/10 transition-colors rounded-2xl" />
-            </div>
-            {pin.title && (
-              <p className="mt-1.5 px-1 text-xs font-medium text-[#0F1720] truncate">
-                {pin.title}
-              </p>
-            )}
-          </Link>
-        </div>
-      ))}
-    </div>
-  )
-}
-
-function BoardGrid({ boards }: { boards: Board[] }) {
-  if (boards.length === 0) {
-    return (
-      <div className="flex flex-col items-center justify-center py-20 text-center">
-        <div className="mb-4 flex h-14 w-14 items-center justify-center rounded-full bg-[#C2F2E4]">
-          <svg
-            width="24"
-            height="24"
-            viewBox="0 0 24 24"
-            fill="none"
-            stroke="#35C8B4"
-            strokeWidth="2"
-            strokeLinecap="round"
-            strokeLinejoin="round"
-          >
-            <path d="M22 19a2 2 0 0 1-2 2H4a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h5l2 3h9a2 2 0 0 1 2 2z" />
-          </svg>
-        </div>
-        <p className="text-base font-semibold text-[#0F1720]">No public boards</p>
-        <p className="mt-1 text-sm text-[#5B6B73]">
-          Public boards created by this user will appear here.
-        </p>
-      </div>
-    )
-  }
-
-  return (
-    <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 gap-4">
-      {boards.map((board) => (
-        <Link key={board.id} href={`/boards/${board.id}`}>
-          <div className="group rounded-2xl border border-[#E6ECEA] bg-white p-4 hover:border-[#35C8B4] hover:shadow-md transition-all">
-            <div className="mb-3 flex h-12 w-12 items-center justify-center rounded-xl bg-[#C2F2E4] group-hover:bg-[#35C8B4]/20 transition-colors">
-              <svg
-                width="20"
-                height="20"
-                viewBox="0 0 24 24"
-                fill="none"
-                stroke="#35C8B4"
-                strokeWidth="2"
-                strokeLinecap="round"
-                strokeLinejoin="round"
-              >
-                <path d="M22 19a2 2 0 0 1-2 2H4a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h5l2 3h9a2 2 0 0 1 2 2z" />
-              </svg>
-            </div>
-            <p className="text-sm font-bold text-[#0F1720] truncate group-hover:text-[#35C8B4] transition-colors">
-              {board.name}
-            </p>
-            {board.description && (
-              <p className="mt-1 text-xs text-[#5B6B73] line-clamp-2">
-                {board.description}
-              </p>
-            )}
-          </div>
-        </Link>
-      ))}
-    </div>
-  )
-}
-
-// ── Stat pill ─────────────────────────────────────────────────────────────────
-
-function StatPill({ value, label }: { value: number; label: string }) {
-  return (
-    <div className="flex flex-col items-center px-4 py-2">
-      <span className="text-lg font-bold text-[#0F1720]">{value}</span>
-      <span className="text-xs text-[#5B6B73]">{label}</span>
-    </div>
-  )
-}
-
-// ── Tab type ──────────────────────────────────────────────────────────────────
-
-type Tab = 'pins' | 'boards'
-
 // ── Page ──────────────────────────────────────────────────────────────────────
 
 export default async function ProfilePage({ params }: Props) {
@@ -255,64 +118,141 @@ export default async function ProfilePage({ params }: Props) {
     getPublicBoards(profile.id),
   ])
 
+  const displayName = profile.display_name || profile.username
+  const initial = displayName.charAt(0).toUpperCase()
+
   return (
-    <main className="min-h-screen bg-white">
-      <div className="max-w-5xl mx-auto px-4 py-10 sm:py-14">
+    <main style={{ minHeight: '100vh', background: 'var(--bg)', fontFamily: 'var(--font-sans)' }}>
+      <div style={{ maxWidth: 1100, margin: '0 auto', padding: '32px 28px 80px' }}>
 
-        {/* ── Profile header ── */}
-        <div className="flex flex-col sm:flex-row items-center sm:items-start gap-6 mb-10">
+        {/* Back link */}
+        <Link href="/" style={{
+          display: 'inline-flex', alignItems: 'center', gap: 6,
+          fontSize: '0.875rem', color: 'var(--muted)', textDecoration: 'none',
+          marginBottom: 28, transition: 'color 150ms',
+        }}>
+          <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round">
+            <path d="m15 18-6-6 6-6"/>
+          </svg>
+          Back to feed
+        </Link>
 
-          {/* Avatar */}
-          <div className="flex-shrink-0 h-24 w-24 rounded-full bg-[#C2F2E4] flex items-center justify-center text-3xl font-bold text-[#35C8B4] overflow-hidden shadow-sm">
-            {profile.avatar_url ? (
-              <Image
-                src={profile.avatar_url}
-                alt={profile.display_name || profile.username}
-                width={96}
-                height={96}
-                className="h-full w-full object-cover"
-                unoptimized
-                priority
-              />
-            ) : (
-              (profile.display_name || profile.username)
-                .charAt(0)
-                .toUpperCase()
-            )}
-          </div>
+        {/* ── Profile header card ── */}
+        <div style={{
+          borderRadius: 20,
+          background: 'linear-gradient(135deg, var(--menthe-light) 0%, var(--brume) 100%)',
+          border: '1.5px solid var(--brume)',
+          padding: '32px 32px',
+          marginBottom: 36,
+        }}>
+          <div style={{ display: 'flex', flexWrap: 'wrap', gap: 24, alignItems: 'center' }}>
 
-          {/* Info */}
-          <div className="flex-1 text-center sm:text-left min-w-0">
-            <h1 className="text-2xl font-bold text-[#0F1720] leading-tight">
-              {profile.display_name || profile.username}
-            </h1>
-            <p className="mt-0.5 text-sm text-[#5B6B73]">@{profile.username}</p>
+            {/* Avatar */}
+            <div style={{
+              flexShrink: 0, width: 96, height: 96, borderRadius: '50%',
+              background: 'var(--menthe)',
+              display: 'flex', alignItems: 'center', justifyContent: 'center',
+              fontSize: '2.25rem', fontWeight: 700, color: '#fff',
+              overflow: 'hidden',
+              border: '3px solid #fff',
+              boxShadow: '0 4px 16px rgb(53 200 180 / .25)',
+            }}>
+              {profile.avatar_url ? (
+                <Image
+                  src={profile.avatar_url}
+                  alt={displayName}
+                  width={96}
+                  height={96}
+                  style={{ width: '100%', height: '100%', objectFit: 'cover' }}
+                  unoptimized
+                  priority
+                />
+              ) : initial}
+            </div>
 
-            {profile.bio && (
-              <p className="mt-3 text-sm text-[#0F1720] leading-relaxed max-w-lg whitespace-pre-wrap">
-                {profile.bio}
+            {/* Info */}
+            <div style={{ flex: 1, minWidth: 0 }}>
+              <h1 style={{
+                fontSize: 'clamp(1.5rem, 3vw, 2rem)',
+                fontWeight: 800,
+                letterSpacing: '-0.03em',
+                lineHeight: 1.1,
+                color: 'var(--text)',
+                margin: '0 0 4px',
+              }}>
+                {displayName}
+              </h1>
+              <p style={{ fontSize: '0.9rem', color: 'var(--menthe)', fontWeight: 600, margin: '0 0 10px' }}>
+                @{profile.username}
               </p>
-            )}
 
-            {/* Stats row */}
-            <div className="mt-4 inline-flex items-center divide-x divide-[#E6ECEA] rounded-2xl border border-[#E6ECEA] bg-white overflow-hidden">
-              <StatPill value={pins.length} label="Pins" />
-              <StatPill value={boards.length} label="Boards" />
+              {profile.bio && (
+                <p style={{
+                  fontSize: '0.9rem', color: 'var(--text-2)',
+                  lineHeight: 1.55, margin: '0 0 14px',
+                  maxWidth: 520, whiteSpace: 'pre-wrap',
+                }}>
+                  {profile.bio}
+                </p>
+              )}
+
+              {/* Stats + actions row */}
+              <div style={{ display: 'flex', alignItems: 'center', gap: 14, flexWrap: 'wrap' }}>
+                {/* Stats pills */}
+                <div style={{
+                  display: 'inline-flex', alignItems: 'center',
+                  borderRadius: 12, overflow: 'hidden',
+                  background: 'rgba(255,255,255,0.7)',
+                  border: '1px solid var(--border)',
+                }}>
+                  <div style={{ padding: '8px 16px', textAlign: 'center' }}>
+                    <span style={{ display: 'block', fontSize: '1.125rem', fontWeight: 800, color: 'var(--text)', lineHeight: 1.2 }}>
+                      {pins.length}
+                    </span>
+                    <span style={{ fontSize: '0.6875rem', fontWeight: 600, color: 'var(--muted)', textTransform: 'uppercase', letterSpacing: '0.05em' }}>
+                      Pins
+                    </span>
+                  </div>
+                  <div style={{ width: 1, height: 28, background: 'var(--border)' }} />
+                  <div style={{ padding: '8px 16px', textAlign: 'center' }}>
+                    <span style={{ display: 'block', fontSize: '1.125rem', fontWeight: 800, color: 'var(--text)', lineHeight: 1.2 }}>
+                      {boards.length}
+                    </span>
+                    <span style={{ fontSize: '0.6875rem', fontWeight: 600, color: 'var(--muted)', textTransform: 'uppercase', letterSpacing: '0.05em' }}>
+                      Boards
+                    </span>
+                  </div>
+                </div>
+
+                {/* Edit profile button (own profile only) */}
+                {isOwnProfile && (
+                  <Link
+                    href="/settings/profile"
+                    style={{
+                      display: 'inline-flex', alignItems: 'center', gap: 6,
+                      padding: '8px 18px', borderRadius: 10,
+                      background: 'rgba(255,255,255,0.7)',
+                      border: '1px solid var(--border)',
+                      fontSize: '0.8125rem', fontWeight: 600,
+                      color: 'var(--text)', textDecoration: 'none',
+                      transition: 'all 150ms',
+                    }}
+                  >
+                    <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.2" strokeLinecap="round" strokeLinejoin="round">
+                      <path d="M11 4H4a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h14a2 2 0 0 0 2-2v-7"/>
+                      <path d="M18.5 2.5a2.121 2.121 0 0 1 3 3L12 15l-4 1 1-4 9.5-9.5z"/>
+                    </svg>
+                    Edit profile
+                  </Link>
+                )}
+              </div>
             </div>
           </div>
         </div>
 
-        {/* ── Tabs rendered as two sections with anchor links ── */}
-        {/* Using simple server-side approach: show both sections and let user scroll */}
-        {/* For full client tab behavior, a 'use client' wrapper would be needed */}
-
+        {/* ── Tabs ── */}
         <ProfileTabs pins={pins} boards={boards} isOwnProfile={isOwnProfile} />
       </div>
     </main>
   )
 }
-
-// ── Client tab switcher ────────────────────────────────────────────────────────
-// Isolated to a thin client component so the parent stays a Server Component
-
-import ProfileTabs from '@/components/profile/ProfileTabs'
