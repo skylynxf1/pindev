@@ -410,6 +410,18 @@ function AvatarMenu({ user }: { user: User }) {
             </Link>
           ))}
 
+          {profile?.username === 'pindev' && (
+            <>
+              <div style={{ height: 1, background: 'var(--border)', margin: '6px 0' }} role="separator"/>
+              <Link href="/admin/pin-drafts" onClick={() => setOpen(false)} role="menuitem" className="menu-item">
+                <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true">
+                  <path d="M9 11l3 3L22 4"/><path d="M21 12v7a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h11"/>
+                </svg>
+                Review Drafts
+              </Link>
+            </>
+          )}
+
           <div style={{ height: 1, background: 'var(--border)', margin: '6px 0' }} role="separator"/>
 
           <button onClick={signOut} role="menuitem" className="menu-item danger">
