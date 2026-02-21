@@ -35,8 +35,8 @@ export const metadata: Metadata = {
     googleBot: { index: true, follow: true },
   },
   icons: {
-    icon:  '/favicon.ico',
-    apple: '/apple-touch-icon.png',
+    icon:  [{ url: '/logo.png', type: 'image/png' }],
+    apple: '/logo.png',
   },
 }
 

@@ -16,23 +16,19 @@ import type { User } from '@supabase/supabase-js'
    ───────────────────────────────────────────────────────────── */
 function Logo() {
   return (
-    <Link href="/" aria-label="PinDev — home" style={{ flexShrink: 0 }}>
-      <div
+    <Link href="/" aria-label="pindev — home" style={{ flexShrink: 0 }}>
+      {/* eslint-disable-next-line @next/next/no-img-element */}
+      <img
+        src="/logo.png"
+        alt="pindev"
         style={{
-          width: 38,
           height: 38,
-          borderRadius: '50%',
-          background: 'var(--menthe)',
-          boxShadow: '0 2px 8px rgb(53 200 180 / .35)',
-          display: 'flex',
-          alignItems: 'center',
-          justifyContent: 'center',
+          width: 38,
+          borderRadius: 10,
+          objectFit: 'cover',
+          display: 'block',
         }}
-      >
-        <span style={{ color: '#fff', fontWeight: 800, fontSize: '1.125rem', letterSpacing: '-0.05em', lineHeight: 1 }}>
-          P
-        </span>
-      </div>
+      />
     </Link>
   )
 }
@@ -559,6 +555,32 @@ export default function Header() {
 
           {/* Right rail */}
           <div style={{ marginLeft: 'auto', display: 'flex', alignItems: 'center', gap: 4 }}>
+            {/* About Us link — desktop only */}
+            {!isMobile && (
+              <Link
+                href="/about"
+                style={{
+                  display: 'flex',
+                  alignItems: 'center',
+                  height: 38,
+                  padding: '0 16px',
+                  borderRadius: 9999,
+                  fontSize: '0.9rem',
+                  fontWeight: 600,
+                  cursor: 'pointer',
+                  background: 'transparent',
+                  transition: 'background 120ms',
+                  whiteSpace: 'nowrap',
+                  textDecoration: 'none',
+                  color: 'var(--text)',
+                }}
+                onMouseEnter={e => { (e.currentTarget as HTMLElement).style.background = 'var(--surface-2)' }}
+                onMouseLeave={e => { (e.currentTarget as HTMLElement).style.background = 'transparent' }}
+              >
+                About
+              </Link>
+            )}
+
             {/* Mobile: search icon toggle */}
             {isMobile && (
               <button
