@@ -1,9 +1,10 @@
 'use client'
 
-import { useState, useRef, useCallback } from 'react'
-import { useRouter } from 'next/navigation'
+import { useState, useRef, useCallback, useEffect } from 'react'
+import { useRouter, useSearchParams } from 'next/navigation'
 import Image from 'next/image'
 import Link from 'next/link'
+import { createClient } from '@/lib/supabase/client'
 import {
   validateMediaFile,
   validateThumbnailFile,
@@ -120,6 +121,8 @@ function StyledTextarea(props: React.TextareaHTMLAttributes<HTMLTextAreaElement>
    ───────────────────────────────────────────────────────────── */
 export default function UploadPage() {
   const router = useRouter()
+  const searchParams = useSearchParams()
+  const editId = searchParams.get('edit') // pin ID when editing existing pin
 
   const [title, setTitle] = useState('')
   const [description, setDescription] = useState('')
@@ -130,10 +133,12 @@ export default function UploadPage() {
 
   const [mediaFile, setMediaFile] = useState<File | null>(null)
   const [mediaPreview, setMediaPreview] = useState<string | null>(null)
+  const [existingMediaUrl, setExistingMediaUrl] = useState<string | null>(null)
   const [thumbnailFile, setThumbnailFile] = useState<File | null>(null)
   const [thumbnailPreview, setThumbnailPreview] = useState<string | null>(null)
   const [isVideo, setIsVideo] = useState(false)
   const [thumbGenerated, setThumbGenerated] = useState(false)
+  const [editLoading, setEditLoading] = useState(false)
 
   const [mediaDragOver, setMediaDragOver] = useState(false)
   const [thumbDragOver, setThumbDragOver] = useState(false)
@@ -143,6 +148,43 @@ export default function UploadPage() {
 
   const mediaInputRef = useRef<HTMLInputElement>(null)
   const thumbInputRef = useRef<HTMLInputElement>(null)
+
+  // Load existing pin data when editing
+  useEffect(() => {
+    if (!editId) return
+    setEditLoading(true)
+    const supabase = createClient()
+    ;(async () => {
+      const { data: { user } } = await supabase.auth.getUser()
+      if (!user) { router.push('/login'); return }
+
+      const { data: pin } = await supabase
+        .from('pins')
+        .select('id, title, description, live_url, repo_url, thumbnail_url, media_url, media_type, owner_id, pin_tags(tags(name))')
+        .eq('id', editId)
+        .single()
+
+      if (!pin || pin.owner_id !== user.id) { router.push('/'); return }
+
+      setTitle(pin.title || '')
+      setDescription(pin.description || '')
+      setLiveUrl(pin.live_url || '')
+      setRepoUrl(pin.repo_url || '')
+      setIsVideo(pin.media_type === 'video')
+      const imgUrl = pin.thumbnail_url || pin.media_url
+      setExistingMediaUrl(imgUrl)
+      setMediaPreview(imgUrl)
+      setAgreedToRules(true)
+
+      // Restore category tag selections
+      const CATEGORY_IDS = ['website', 'app', 'ai-tool', 'vibecoding']
+      // eslint-disable-next-line @typescript-eslint/no-explicit-any
+      const tagNames = (pin.pin_tags ?? []).map((pt: any) => pt.tags?.name).filter(Boolean) as string[]
+      setSelectedTags(tagNames.filter(t => CATEGORY_IDS.includes(t)))
+
+      setEditLoading(false)
+    })()
+  }, [editId, router])
 
   const handleMediaFile = useCallback(async (file: File) => {
     const err = validateMediaFile(file)
@@ -184,24 +226,29 @@ export default function UploadPage() {
   async function handleSubmit(e: React.FormEvent) {
     e.preventDefault(); setSubmitError(null)
     const errors: Record<string, string> = {}
-    if (!mediaFile) errors.media = 'Please upload a media file.'
-    if (isVideo && !thumbnailFile) errors.thumbnail = 'Please provide a thumbnail.'
-    if (!agreedToRules) errors.rules = 'You must agree to the content rules.'
+    // In edit mode, existing media is kept if no new file is selected
+    if (!mediaFile && !existingMediaUrl) errors.media = 'Please upload a media file.'
+    if (isVideo && !thumbnailFile && !existingMediaUrl) errors.thumbnail = 'Please provide a thumbnail.'
+    if (!editId && !agreedToRules) errors.rules = 'You must agree to the content rules.'
     if (Object.keys(errors).length > 0) { setFieldErrors(p => ({ ...p, ...errors })); return }
     setSubmitting(true)
     const body = new FormData()
-    body.append('media', mediaFile!)
-    if (thumbnailFile) body.append('thumbnail', thumbnailFile)
+    if (mediaFile) {
+      body.append('media', mediaFile)
+      if (thumbnailFile) body.append('thumbnail', thumbnailFile)
+    }
     body.append('title', title)
     body.append('description', description)
     body.append('live_url', liveUrl)
     body.append('repo_url', repoUrl)
     body.append('tags', selectedTags.join(','))
-    body.append('agreed_to_rules', String(agreedToRules))
-    const res = await fetch('/api/pins', { method: 'POST', body })
+    if (!editId) body.append('agreed_to_rules', String(agreedToRules))
+    const url = editId ? `/api/pins/${editId}` : '/api/pins'
+    const method = editId ? 'PATCH' : 'POST'
+    const res = await fetch(url, { method, body })
     const json = await res.json()
     if (!res.ok) { setSubmitError(json.error ?? 'Something went wrong.'); setSubmitting(false); return }
-    router.push(`/pin/${json.id}`)
+    router.push(`/pin/${editId ?? json.id}`)
   }
 
   const CONTENT_RULES = [
@@ -216,7 +263,14 @@ export default function UploadPage() {
       <div style={{ maxWidth: 900, margin: '0 auto', padding: '32px 28px 80px' }}>
 
         {/* Back link */}
-        <Link href="/" style={{
+        {editLoading && (
+          <div style={{ display: 'flex', alignItems: 'center', gap: 10, marginBottom: 28, color: 'var(--muted)', fontSize: '0.9rem' }}>
+            <span style={{ width: 16, height: 16, borderRadius: '50%', border: '2.5px solid var(--border)', borderTopColor: 'var(--menthe)', animation: 'spin .7s linear infinite', display: 'inline-block' }} />
+            Loading pin…
+          </div>
+        )}
+
+        <Link href={editId ? `/pin/${editId}` : '/'} style={{
           display: 'inline-flex', alignItems: 'center', gap: 6,
           fontSize: '0.875rem', color: 'var(--muted)', textDecoration: 'none',
           marginBottom: 28, transition: 'color 150ms',
@@ -227,7 +281,7 @@ export default function UploadPage() {
           <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round">
             <path d="m15 18-6-6 6-6"/>
           </svg>
-          Back to feed
+          {editId ? 'Back to pin' : 'Back to feed'}
         </Link>
 
         {/* Page header */}
@@ -241,11 +295,11 @@ export default function UploadPage() {
               color: 'var(--text)',
               margin: '0 0 12px',
             }}>
-              Share your{' '}
-              <em style={{ color: 'var(--menthe)', fontStyle: 'italic' }}>vision.</em>
+              {editId ? 'Edit your ' : 'Share your '}{' '}
+              <em style={{ color: 'var(--menthe)', fontStyle: 'italic' }}>{editId ? 'pin.' : 'vision.'}</em>
             </h1>
             <p style={{ fontSize: '1rem', color: 'var(--muted)', margin: 0, lineHeight: 1.55 }}>
-              Pin a live web, mobile app, or AI project to the PinDev community.
+              {editId ? 'Update your pin details below. Your existing media is kept unless you upload a new one.' : 'Pin a live web, mobile app, or AI project to the PinDev community.'}
             </p>
           </div>
 
@@ -291,7 +345,7 @@ export default function UploadPage() {
 
             {/* Drop zone */}
             <div
-              onClick={() => !mediaPreview && mediaInputRef.current?.click()}
+              onClick={() => (existingMediaUrl || !mediaPreview) && mediaInputRef.current?.click()}
               onDragOver={e => { e.preventDefault(); setMediaDragOver(true) }}
               onDragLeave={() => setMediaDragOver(false)}
               onDrop={handleMediaDrop}
@@ -318,7 +372,7 @@ export default function UploadPage() {
                     type="button"
                     onClick={e => {
                       e.stopPropagation()
-                      setMediaFile(null); setMediaPreview(null)
+                      setMediaFile(null); setMediaPreview(null); setExistingMediaUrl(null)
                       setThumbnailFile(null); setThumbnailPreview(null); setIsVideo(false)
                     }}
                     style={{
@@ -333,11 +387,15 @@ export default function UploadPage() {
                   >
                     <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round"><path d="M18 6 6 18M6 6l12 12"/></svg>
                   </button>
-                  {mediaFile && (
+                  {mediaFile ? (
                     <p style={{ padding: '8px 16px', fontSize: '0.75rem', color: 'var(--muted)', textAlign: 'center' }}>
                       {mediaFile.name} — {formatBytes(mediaFile.size)}
                     </p>
-                  )}
+                  ) : existingMediaUrl ? (
+                    <p style={{ padding: '8px 16px', fontSize: '0.75rem', color: 'var(--muted)', textAlign: 'center' }}>
+                      Existing image · click to replace
+                    </p>
+                  ) : null}
                 </div>
               ) : (
                 <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', gap: 12, padding: '60px 40px', textAlign: 'center' }}>
@@ -571,8 +629,8 @@ export default function UploadPage() {
             </div>
           </div>
 
-          {/* ── Content Rules ── */}
-          <div style={{
+          {/* ── Content Rules (hidden in edit mode — already agreed) ── */}
+          {!editId && <div style={{
             borderRadius: 20,
             background: 'linear-gradient(135deg, var(--menthe-light) 0%, var(--brume) 100%)',
             border: '1.5px solid var(--brume)',
@@ -640,7 +698,7 @@ export default function UploadPage() {
               </span>
             </label>
             <FieldError message={fieldErrors.rules ?? null} />
-          </div>
+          </div>}
 
           {/* Submit error */}
           {submitError && (
@@ -688,7 +746,7 @@ export default function UploadPage() {
                 </>
               ) : (
                 <>
-                  Publish your project
+                  {editId ? 'Save changes' : 'Publish your project'}
                   <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round">
                     <polygon points="13 2 3 14 12 14 11 22 21 10 12 10 13 2"/>
                   </svg>
