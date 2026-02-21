@@ -5,7 +5,6 @@ function requireAgentSecret(req: Request) {
   const header = req.headers.get("authorization") || "";
   const token = header.startsWith("Bearer ") ? header.slice(7) : "";
   const secret = process.env.PIN_AGENT_SECRET ?? "";
-  console.log("[ingest-github] token:", JSON.stringify(token), "secret:", JSON.stringify(secret), "match:", token === secret);
   return token === secret;
 }
 
@@ -21,16 +20,31 @@ function daysAgo(n: number): string {
   return d.toISOString().split("T")[0];
 }
 
+interface GithubRepo {
+  name: string;
+  full_name: string;
+  html_url: string;
+  homepage: string | null;
+  description: string | null;
+  topics: string[];
+  language: string | null;
+}
+
+async function searchGithub(query: string, headers: Record<string, string>): Promise<GithubRepo[]> {
+  const url = `https://api.github.com/search/repositories?q=${encodeURIComponent(query)}&sort=stars&order=desc&per_page=20`;
+  const res = await fetch(url, { headers });
+  if (!res.ok) return [];
+  const data = await res.json();
+  return data.items ?? [];
+}
+
 export async function POST(req: Request) {
   if (!requireAgentSecret(req)) {
     return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
   }
 
   const supabase = createAdminClient();
-
-  // Fetch GitHub trending repos (active in last 30 days, 200+ stars)
-  const since = daysAgo(30);
-  const ghUrl = `https://api.github.com/search/repositories?q=stars:>200+pushed:>${since}&sort=stars&order=desc&per_page=20`;
+  const since = daysAgo(90); // broader window for design content
 
   const ghHeaders: Record<string, string> = {
     Accept: "application/vnd.github+json",
@@ -40,42 +54,42 @@ export async function POST(req: Request) {
     ghHeaders["Authorization"] = `Bearer ${process.env.GITHUB_TOKEN}`;
   }
 
-  let ghData: { items: GithubRepo[] };
-  try {
-    const ghRes = await fetch(ghUrl, { headers: ghHeaders });
-    if (!ghRes.ok) {
-      const text = await ghRes.text();
-      return NextResponse.json(
-        { error: `GitHub API error ${ghRes.status}: ${text.slice(0, 200)}` },
-        { status: 502 }
-      );
-    }
-    ghData = await ghRes.json();
-  } catch (e: unknown) {
-    return NextResponse.json(
-      { error: e instanceof Error ? e.message : "Failed to fetch GitHub" },
-      { status: 502 }
-    );
-  }
+  // 3 parallel searches targeting different UI/design categories
+  const [uiRepos, animRepos, dsRepos] = await Promise.all([
+    searchGithub(`topic:ui-components stars:>200 pushed:>${since}`, ghHeaders),
+    searchGithub(`topic:css-animation stars:>100 pushed:>${since}`, ghHeaders),
+    searchGithub(`topic:design-system stars:>200 pushed:>${since}`, ghHeaders),
+  ]);
 
-  const repos: GithubRepo[] = ghData.items ?? [];
+  // Merge and deduplicate within the batch by html_url
+  const seen = new Set<string>();
+  const allRepos: GithubRepo[] = [];
+  for (const repo of [...uiRepos, ...animRepos, ...dsRepos]) {
+    if (!seen.has(repo.html_url)) {
+      seen.add(repo.html_url);
+      allRepos.push(repo);
+    }
+  }
 
   let created = 0;
   let skipped = 0;
   const createdTitles: string[] = [];
 
-  for (const repo of repos) {
+  for (const repo of allRepos) {
     const title = toTitleCase(repo.name);
     const sourceUrl = repo.html_url;
 
-    // Skip if title too short
-    if (title.length < 6) {
+    // Must have a live demo (homepage) — ensures visual content is accessible
+    const liveUrl = repo.homepage?.trim();
+    if (!liveUrl) {
       skipped++;
       continue;
     }
 
-    // Use homepage as live_url; fall back to repo URL if empty
-    const liveUrl = repo.homepage?.trim() || repo.html_url;
+    if (title.length < 6) {
+      skipped++;
+      continue;
+    }
 
     // Deduplication: check if source_url already exists
     const { data: existing } = await supabase
@@ -113,7 +127,7 @@ export async function POST(req: Request) {
 
     const { error } = await supabase.from("pin_drafts").insert(draft);
     if (error) {
-      console.error("[ingest-github] insert error for", repo.full_name, error.message);
+      console.error("[ingest-ui] insert error for", repo.full_name, error.message);
       skipped++;
     } else {
       created++;
@@ -122,16 +136,4 @@ export async function POST(req: Request) {
   }
 
   return NextResponse.json({ created, skipped, repos: createdTitles });
-}
-
-// ── Types ──────────────────────────────────────────────────────────────────────
-
-interface GithubRepo {
-  name: string;
-  full_name: string;
-  html_url: string;
-  homepage: string | null;
-  description: string | null;
-  topics: string[];
-  language: string | null;
 }

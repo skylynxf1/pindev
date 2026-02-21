@@ -22,13 +22,16 @@ type IngestResult = {
   repos: string[];
 } | null;
 
+// which button is currently fetching — null means idle
+type IngestSource = "github" | "ui" | null;
+
 const SECRET = process.env.NEXT_PUBLIC_ADMIN_DRAFTS_SECRET ?? "";
 
 export default function AdminPinDraftsPage() {
   const [drafts, setDrafts] = useState<Draft[]>([]);
   const [loading, setLoading] = useState(true);
   const [err, setErr] = useState<string | null>(null);
-  const [ingesting, setIngesting] = useState(false);
+  const [ingesting, setIngesting] = useState<IngestSource>(null);
   const [ingestResult, setIngestResult] = useState<IngestResult>(null);
   const [ingestErr, setIngestErr] = useState<string | null>(null);
 
@@ -56,59 +59,46 @@ export default function AdminPinDraftsPage() {
       method: "POST",
       headers: { Authorization: `Bearer ${SECRET}` },
     });
-
     const json = await res.json();
-    if (!res.ok) {
-      alert(json.error || "Publish failed");
-      return;
-    }
-
+    if (!res.ok) { alert(json.error || "Publish failed"); return; }
     setDrafts((d) => d.filter((x) => x.id !== id));
   }
 
   async function reject(id: string) {
     const res = await fetch(`/api/admin/pin-drafts/${id}`, {
       method: "PATCH",
-      headers: {
-        Authorization: `Bearer ${SECRET}`,
-        "Content-Type": "application/json",
-      },
+      headers: { Authorization: `Bearer ${SECRET}`, "Content-Type": "application/json" },
       body: JSON.stringify({ status: "REJECTED" }),
     });
-
     const json = await res.json();
-    if (!res.ok) {
-      alert(json.error || "Reject failed");
-      return;
-    }
-
+    if (!res.ok) { alert(json.error || "Reject failed"); return; }
     setDrafts((d) => d.filter((x) => x.id !== id));
   }
 
-  async function fetchGithubTrending() {
-    setIngesting(true);
+  async function runIngest(source: "github" | "ui") {
+    setIngesting(source);
     setIngestResult(null);
     setIngestErr(null);
 
+    const endpoint = source === "github" ? "/api/admin/ingest-github" : "/api/admin/ingest-ui";
+
     try {
-      const res = await fetch("/api/admin/ingest-github", {
+      const res = await fetch(endpoint, {
         method: "POST",
         headers: { Authorization: `Bearer ${SECRET}` },
       });
-
       const json = await res.json();
       if (!res.ok) {
         setIngestErr(json.error || "Ingestion failed");
       } else {
         setIngestResult(json);
-        // Reload drafts to show new ones
         await load();
-        return; // load() already sets loading=false
+        return;
       }
     } catch (e: unknown) {
       setIngestErr(e instanceof Error ? e.message : "Unknown error");
     } finally {
-      setIngesting(false);
+      setIngesting(null);
     }
   }
 
@@ -117,53 +107,47 @@ export default function AdminPinDraftsPage() {
   }, []); // eslint-disable-line react-hooks/exhaustive-deps
 
   const pendingCount = drafts.length;
+  const isBusy = ingesting !== null;
 
   return (
     <div style={{ maxWidth: 960, margin: "0 auto", padding: "32px 24px" }}>
       {/* Header row */}
-      <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", marginBottom: 24, flexWrap: "wrap", gap: 12 }}>
-        <h1 style={{ fontSize: "1.35rem", fontWeight: 700, margin: 0 }}>
+      <div style={{ display: "flex", alignItems: "flex-start", justifyContent: "space-between", marginBottom: 24, flexWrap: "wrap", gap: 12 }}>
+        <h1 style={{ fontSize: "1.35rem", fontWeight: 700, margin: 0, paddingTop: 4 }}>
           Pin Drafts{!loading && ` (${pendingCount} pending)`}
         </h1>
 
-        <button
-          onClick={fetchGithubTrending}
-          disabled={ingesting}
-          style={{
-            display: "flex",
-            alignItems: "center",
-            gap: 8,
-            padding: "9px 18px",
-            borderRadius: 10,
-            border: "1.5px solid var(--border)",
-            background: ingesting ? "var(--surface-2)" : "var(--surface)",
-            color: "var(--text)",
-            cursor: ingesting ? "not-allowed" : "pointer",
-            fontWeight: 600,
-            fontSize: "0.875rem",
-            opacity: ingesting ? 0.7 : 1,
-          }}
-        >
-          {ingesting ? (
-            <>
-              <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round"
-                style={{ animation: "spin 0.8s linear infinite" }}>
-                <path d="M21 12a9 9 0 1 1-6.219-8.56"/>
-              </svg>
-              Fetching…
-            </>
-          ) : (
-            <>
+        {/* Ingest buttons stacked */}
+        <div style={{ display: "flex", flexDirection: "column", gap: 8 }}>
+          <IngestButton
+            label="Fetch GitHub Trending"
+            loading={ingesting === "github"}
+            disabled={isBusy}
+            onClick={() => runIngest("github")}
+            icon={
               <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round">
-                <path d="M12 2v4M12 18v4M4.93 4.93l2.83 2.83M16.24 16.24l2.83 2.83M2 12h4M18 12h4M4.93 19.07l2.83-2.83M16.24 7.76l2.83-2.83"/>
+                <path d="M15 22v-4a4.8 4.8 0 0 0-1-3.2c3 0 6-2 6-5.5.08-1.25-.27-2.48-1-3.5.28-1.15.28-2.35 0-3.5 0 0-1 0-3 1.5-2.64-.5-5.36-.5-8 0C6 2 5 2 5 2c-.3 1.15-.3 2.35 0 3.5A5.4 5.4 0 0 0 4 9c0 3.5 3 5.5 6 5.5-.39.49-.68 1.05-.85 1.65-.17.6-.22 1.23-.15 1.85v4"/>
+                <path d="M9 18c-4.51 2-5-2-7-2"/>
               </svg>
-              Fetch GitHub Trending
-            </>
-          )}
-        </button>
+            }
+          />
+          <IngestButton
+            label="Fetch UI Showcases"
+            loading={ingesting === "ui"}
+            disabled={isBusy}
+            onClick={() => runIngest("ui")}
+            accent
+            icon={
+              <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round">
+                <rect width="18" height="18" x="3" y="3" rx="2"/>
+                <path d="M3 9h18M9 21V9"/>
+              </svg>
+            }
+          />
+        </div>
       </div>
 
-      {/* Ingest result */}
+      {/* Ingest result banner */}
       {ingestResult && (
         <div style={{
           marginBottom: 20,
@@ -178,7 +162,8 @@ export default function AdminPinDraftsPage() {
           {ingestResult.skipped} skipped (duplicates)
           {ingestResult.repos.length > 0 && (
             <span style={{ color: "var(--muted)", marginLeft: 8 }}>
-              — {ingestResult.repos.slice(0, 5).join(", ")}{ingestResult.repos.length > 5 ? ` +${ingestResult.repos.length - 5} more` : ""}
+              — {ingestResult.repos.slice(0, 5).join(", ")}
+              {ingestResult.repos.length > 5 ? ` +${ingestResult.repos.length - 5} more` : ""}
             </span>
           )}
         </div>
@@ -219,7 +204,6 @@ export default function AdminPinDraftsPage() {
                 flexDirection: "column",
               }}
             >
-              {/* Image */}
               {d.image_url ? (
                 // eslint-disable-next-line @next/next/no-img-element
                 <img
@@ -238,7 +222,6 @@ export default function AdminPinDraftsPage() {
                 </div>
               )}
 
-              {/* Body */}
               <div style={{ padding: "14px 16px", flex: 1, display: "flex", flexDirection: "column", gap: 8 }}>
                 <div style={{ fontWeight: 600, fontSize: "0.95rem", color: "var(--text)", lineHeight: 1.3 }}>{d.title}</div>
 
@@ -248,7 +231,6 @@ export default function AdminPinDraftsPage() {
                   </div>
                 )}
 
-                {/* Tags */}
                 {d.tags?.length > 0 && (
                   <div style={{ display: "flex", flexWrap: "wrap", gap: 4 }}>
                     {d.tags.slice(0, 6).map((t) => (
@@ -269,7 +251,6 @@ export default function AdminPinDraftsPage() {
                   </div>
                 )}
 
-                {/* Links */}
                 <div style={{ display: "flex", gap: 8, fontSize: "0.75rem" }}>
                   {d.live_url && (
                     <a href={d.live_url} target="_blank" rel="noopener noreferrer" style={{ color: "var(--menthe)", textDecoration: "none", fontWeight: 500 }}>
@@ -283,20 +264,13 @@ export default function AdminPinDraftsPage() {
                   )}
                 </div>
 
-                {/* Actions */}
                 <div style={{ display: "flex", gap: 8, marginTop: "auto", paddingTop: 4 }}>
                   <button
                     onClick={() => publish(d.id)}
                     style={{
-                      flex: 1,
-                      padding: "8px 0",
-                      borderRadius: 8,
-                      border: "none",
-                      background: "var(--menthe)",
-                      color: "#fff",
-                      fontWeight: 600,
-                      fontSize: "0.85rem",
-                      cursor: "pointer",
+                      flex: 1, padding: "8px 0", borderRadius: 8, border: "none",
+                      background: "var(--menthe)", color: "#fff",
+                      fontWeight: 600, fontSize: "0.85rem", cursor: "pointer",
                     }}
                   >
                     Publish
@@ -304,15 +278,9 @@ export default function AdminPinDraftsPage() {
                   <button
                     onClick={() => reject(d.id)}
                     style={{
-                      flex: 1,
-                      padding: "8px 0",
-                      borderRadius: 8,
-                      border: "1.5px solid #f87171",
-                      background: "transparent",
-                      color: "#ef4444",
-                      fontWeight: 600,
-                      fontSize: "0.85rem",
-                      cursor: "pointer",
+                      flex: 1, padding: "8px 0", borderRadius: 8,
+                      border: "1.5px solid #f87171", background: "transparent",
+                      color: "#ef4444", fontWeight: 600, fontSize: "0.85rem", cursor: "pointer",
                     }}
                   >
                     Reject
@@ -328,5 +296,72 @@ export default function AdminPinDraftsPage() {
         @keyframes spin { to { transform: rotate(360deg); } }
       `}</style>
     </div>
+  );
+}
+
+/* ─── Shared ingest button component ───────────────────────────────────────── */
+function IngestButton({
+  label,
+  loading,
+  disabled,
+  onClick,
+  icon,
+  accent = false,
+}: {
+  label: string;
+  loading: boolean;
+  disabled: boolean;
+  onClick: () => void;
+  icon: React.ReactNode;
+  accent?: boolean;
+}) {
+  const base: React.CSSProperties = {
+    display: "flex",
+    alignItems: "center",
+    gap: 8,
+    padding: "9px 18px",
+    borderRadius: 10,
+    fontWeight: 600,
+    fontSize: "0.875rem",
+    cursor: disabled ? "not-allowed" : "pointer",
+    opacity: disabled ? 0.65 : 1,
+    transition: "opacity 150ms",
+    whiteSpace: "nowrap",
+  };
+
+  const style: React.CSSProperties = accent
+    ? {
+        ...base,
+        border: "1.5px solid var(--menthe)",
+        background: "var(--menthe-light, #e6f9f6)",
+        color: "var(--menthe)",
+      }
+    : {
+        ...base,
+        border: "1.5px solid var(--border)",
+        background: "var(--surface)",
+        color: "var(--text)",
+      };
+
+  return (
+    <button onClick={onClick} disabled={disabled} style={style}>
+      {loading ? (
+        <>
+          <svg
+            width="15" height="15" viewBox="0 0 24 24" fill="none"
+            stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round"
+            style={{ animation: "spin 0.8s linear infinite" }}
+          >
+            <path d="M21 12a9 9 0 1 1-6.219-8.56"/>
+          </svg>
+          Fetching…
+        </>
+      ) : (
+        <>
+          {icon}
+          {label}
+        </>
+      )}
+    </button>
   );
 }
