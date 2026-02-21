@@ -133,7 +133,7 @@ export default function HomePage() {
   const [authReady, setAuthReady] = useState(false)
   const [isLoggedIn, setIsLoggedIn] = useState(false)
   const [currentUserId, setCurrentUserId] = useState<string | undefined>(undefined)
-  const [authModalDismissed, setAuthModalDismissed] = useState(false)
+  const [authModalDismissed, setAuthModalDismissed] = useState(true)
 
   const handleEmptyClick = useCallback(() => {
     if (isLoggedIn) {

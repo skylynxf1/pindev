@@ -46,3 +46,16 @@ export type BoardPin = {
   pin_id: string
   saved_at: string
 }
+
+export type FollowStatus = {
+  is_following: boolean
+  follower_count: number
+  following_count: number
+}
+
+export type FollowUser = {
+  id: string
+  username: string
+  display_name: string
+  avatar_url: string | null
+}

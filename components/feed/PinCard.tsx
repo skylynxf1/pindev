@@ -2,6 +2,7 @@
 
 import { useState } from 'react'
 import Image from 'next/image'
+import BoardPickerModal from '@/components/boards/BoardPickerModal'
 import type { Pin, Tag } from '@/types'
 
 /* ─────────────────────────────────────────────────────────────
@@ -91,26 +92,19 @@ export default function PinCard({ pin, onSave, currentUserId, onDelete }: PinCar
   const [hovered, setHovered] = useState(false)
   const [confirmDelete, setConfirmDelete] = useState(false)
   const [deleting, setDeleting] = useState(false)
-  const [saving, setSaving] = useState(false)
   const [saved, setSaved] = useState(false)
+  const [showPicker, setShowPicker] = useState(false)
   const category = getCategoryFromTags(pin.tags)
   const isOwner = !!currentUserId && currentUserId === pin.owner_id
 
-  async function handleSave(e: React.MouseEvent) {
+  function handleSave(e: React.MouseEvent) {
     e.stopPropagation()
     if (!currentUserId) {
       onSave?.(pin)
       return
     }
-    if (saved || saving) return
-    setSaving(true)
-    const res = await fetch('/api/saved-pins', {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ pin_id: pin.id }),
-    })
-    setSaving(false)
-    if (res.ok) setSaved(true)
+    if (saved) return
+    setShowPicker(true)
   }
 
   async function handleDelete(e: React.MouseEvent) {
@@ -175,6 +169,7 @@ export default function PinCard({ pin, onSave, currentUserId, onDelete }: PinCar
                 inset: 0,
                 background: hovered ? 'rgba(0,0,0,0.08)' : 'transparent',
                 transition: 'background 200ms',
+                pointerEvents: 'none',
               }}
             />
 
@@ -187,13 +182,15 @@ export default function PinCard({ pin, onSave, currentUserId, onDelete }: PinCar
                 display: 'flex',
                 gap: 6,
                 opacity: hovered ? 1 : 0,
+                pointerEvents: hovered ? 'auto' : 'none',
                 transition: 'opacity 200ms',
               }}
             >
               {/* Save button */}
               <button
+                type="button"
                 onClick={handleSave}
-                disabled={saving || saved}
+                disabled={saved}
                 style={{
                   display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 4,
                   borderRadius: 14, padding: '5px 12px',
@@ -206,9 +203,7 @@ export default function PinCard({ pin, onSave, currentUserId, onDelete }: PinCar
                 onMouseEnter={e => { if (!saved) (e.currentTarget as HTMLElement).style.background = 'var(--menthe)' }}
                 onMouseLeave={e => { if (!saved) (e.currentTarget as HTMLElement).style.background = 'var(--verveine)' }}
               >
-                {saving ? (
-                  <span style={{ width: 10, height: 10, borderRadius: '50%', border: '2px solid rgba(255,255,255,0.4)', borderTopColor: '#fff', animation: 'spin .7s linear infinite', display: 'inline-block' }} />
-                ) : saved ? (
+                {saved ? (
                   <>
                     <svg width="10" height="10" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="3" strokeLinecap="round" strokeLinejoin="round"><polyline points="20 6 9 17 4 12"/></svg>
                     Saved
@@ -219,6 +214,7 @@ export default function PinCard({ pin, onSave, currentUserId, onDelete }: PinCar
               {/* Delete button — owner only */}
               {isOwner && (
                 <button
+                  type="button"
                   onClick={handleDelete}
                   disabled={deleting}
                   style={{
@@ -371,6 +367,7 @@ export default function PinCard({ pin, onSave, currentUserId, onDelete }: PinCar
             gap: 8,
             cursor: 'pointer',
             overflow: 'hidden',
+            pointerEvents: flipped ? 'auto' : 'none',
           }}
         >
           {/* Flip back hint */}
@@ -529,6 +526,16 @@ export default function PinCard({ pin, onSave, currentUserId, onDelete }: PinCar
           )}
         </div>
       </div>
+
+      {/* Board picker modal */}
+      {showPicker && (
+        <BoardPickerModal
+          pin={pin}
+          onClose={() => setShowPicker(false)}
+          onSaved={() => setSaved(true)}
+        />
+      )}
+
       <style>{`@keyframes spin { to { transform: rotate(360deg) } }`}</style>
     </div>
   )

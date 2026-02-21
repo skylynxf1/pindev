@@ -1,6 +1,6 @@
 'use client'
 
-import { useState, useEffect } from 'react'
+import { useState } from 'react'
 import Image from 'next/image'
 import Link from 'next/link'
 import type { Pin, Board } from '@/types'
@@ -8,7 +8,7 @@ import type { Pin, Board } from '@/types'
 /* ─────────────────────────────────────────────────────────────
    TYPES
    ───────────────────────────────────────────────────────────── */
-type OwnTab = 'my-pins' | 'saved' | 'boards'
+type OwnTab = 'my-pins' | 'boards'
 type OtherTab = 'pins' | 'boards'
 type Tab = OwnTab | OtherTab
 
@@ -16,6 +16,7 @@ interface ProfileTabsProps {
   pins: Pin[]
   boards: Board[]
   isOwnProfile: boolean
+  initialTab?: 'boards'
 }
 
 /* ─────────────────────────────────────────────────────────────
@@ -170,74 +171,6 @@ function MyPinsGrid({ initialPins }: { initialPins: Pin[] }) {
 }
 
 /* ─────────────────────────────────────────────────────────────
-   SAVED PINS TAB (lazy loaded)
-   ───────────────────────────────────────────────────────────── */
-function SavedPinsTab() {
-  const [pins, setPins] = useState<Pin[]>([])
-  const [loading, setLoading] = useState(true)
-  const [error, setError] = useState<string | null>(null)
-
-  useEffect(() => {
-    fetch('/api/saved-pins')
-      .then(r => r.json())
-      .then(data => { setPins(data.pins ?? []); setLoading(false) })
-      .catch(() => { setError('Failed to load saved pins.'); setLoading(false) })
-  }, [])
-
-  if (loading) {
-    return (
-      <div className="columns-2 sm:columns-3 md:columns-4" style={{ gap: 12 }}>
-        {Array.from({ length: 8 }).map((_, i) => (
-          <div
-            key={i}
-            className="skeleton"
-            style={{
-              marginBottom: 12, breakInside: 'avoid',
-              height: [200, 260, 180, 300, 220, 240, 200, 280][i % 8],
-              borderRadius: 16,
-            }}
-          />
-        ))}
-      </div>
-    )
-  }
-
-  if (error) {
-    return (
-      <div style={{
-        padding: '40px 20px', textAlign: 'center',
-        borderRadius: 14, border: '1px solid #fecaca',
-        background: '#fef2f2', color: '#dc2626', fontSize: '0.875rem',
-      }}>
-        {error}
-      </div>
-    )
-  }
-
-  if (pins.length === 0) {
-    return (
-      <EmptyState
-        icon={<svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="var(--menthe)" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M19 21l-7-5-7 5V5a2 2 0 0 1 2-2h10a2 2 0 0 1 2 2z"/></svg>}
-        title="No saved pins yet"
-        sub="Browse the feed and hit Save on pins you love."
-        ctaHref="/"
-        ctaLabel="Browse feed"
-      />
-    )
-  }
-
-  return (
-    <div className="columns-2 sm:columns-3 md:columns-4 lg:columns-5" style={{ gap: 12 }}>
-      {pins.map(pin => (
-        <Link key={pin.id} href={`/pin/${pin.id}`} scroll={false} style={{ textDecoration: 'none', color: 'inherit' }}>
-          <PinCard pin={pin} />
-        </Link>
-      ))}
-    </div>
-  )
-}
-
-/* ─────────────────────────────────────────────────────────────
    READ-ONLY PIN GRID (other people's profiles)
    ───────────────────────────────────────────────────────────── */
 function ReadOnlyPinGrid({ pins }: { pins: Pin[] }) {
@@ -265,8 +198,55 @@ function ReadOnlyPinGrid({ pins }: { pins: Pin[] }) {
 /* ─────────────────────────────────────────────────────────────
    BOARDS GRID
    ───────────────────────────────────────────────────────────── */
-function BoardGrid({ boards }: { boards: Board[] }) {
-  if (boards.length === 0) {
+/* ── shared card shell ── */
+const BOARD_CARD_STYLE: React.CSSProperties = {
+  borderRadius: 16,
+  border: '1.5px solid var(--border)',
+  background: 'var(--bg)',
+  padding: '20px 18px',
+  transition: 'border-color 150ms, transform 200ms, box-shadow 200ms',
+  height: '100%',
+}
+
+function BoardGrid({ boards, onBoardAdded, isOwnProfile }: { boards: Board[]; onBoardAdded: (b: Board) => void; isOwnProfile: boolean }) {
+  const [showCreate, setShowCreate] = useState(false)
+  const [newBoardName, setNewBoardName] = useState('')
+  const [creating, setCreating] = useState(false)
+  const [createError, setCreateError] = useState('')
+
+  async function handleCreate() {
+    const name = newBoardName.trim()
+    if (!name || creating) return
+    setCreating(true)
+    setCreateError('')
+    try {
+      const res = await fetch('/api/boards', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ name }),
+      })
+      const data = await res.json()
+      if (res.ok) {
+        onBoardAdded(data.board)
+        setNewBoardName('')
+        setShowCreate(false)
+      } else {
+        setCreateError(data.error ?? 'Failed to create board.')
+      }
+    } catch {
+      setCreateError('Something went wrong.')
+    } finally {
+      setCreating(false)
+    }
+  }
+
+  function cancelCreate() {
+    setShowCreate(false)
+    setNewBoardName('')
+    setCreateError('')
+  }
+
+  if (boards.length === 0 && !isOwnProfile) {
     return (
       <EmptyState
         icon={<svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="var(--menthe)" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M22 19a2 2 0 0 1-2 2H4a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h5l2 3h9a2 2 0 0 1 2 2z"/></svg>}
@@ -278,41 +258,159 @@ function BoardGrid({ boards }: { boards: Board[] }) {
 
   return (
     <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(200px, 1fr))', gap: 16 }}>
-      {boards.map(board => (
-        <Link key={board.id} href={`/boards/${board.id}`} style={{ textDecoration: 'none', color: 'inherit' }}>
-          <div className="pin-lift" style={{
-            borderRadius: 16,
-            border: '1.5px solid var(--border)',
-            background: 'var(--bg)',
-            padding: '20px 18px',
-            transition: 'border-color 150ms, transform 200ms, box-shadow 200ms',
+
+      {/* Board cards */}
+      {boards.map(board => {
+        const isSaved = board.name === 'Saved'
+        const href = isSaved ? '/saved' : `/boards/${board.id}`
+        return (
+          <Link key={board.id} href={href} style={{ textDecoration: 'none', color: 'inherit' }}>
+            <div className="pin-lift" style={BOARD_CARD_STYLE}>
+              <div style={{
+                marginBottom: 12, width: 48, height: 48,
+                borderRadius: 14,
+                background: 'var(--brume)',
+                display: 'flex', alignItems: 'center', justifyContent: 'center',
+              }}>
+                {isSaved ? (
+                  <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="var(--menthe)" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+                    <path d="M19 21l-7-5-7 5V5a2 2 0 0 1 2-2h10a2 2 0 0 1 2 2z"/>
+                  </svg>
+                ) : (
+                  <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="var(--menthe)" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+                    <path d="M22 19a2 2 0 0 1-2 2H4a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h5l2 3h9a2 2 0 0 1 2 2z"/>
+                  </svg>
+                )}
+              </div>
+              <p style={{ fontSize: '0.875rem', fontWeight: 700, color: 'var(--text)', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap', margin: '0 0 4px' }}>
+                {board.name}
+              </p>
+              {board.description && (
+                <p style={{
+                  fontSize: '0.75rem', color: 'var(--muted)', margin: 0,
+                  lineHeight: 1.5, overflow: 'hidden',
+                  display: '-webkit-box', WebkitLineClamp: 2, WebkitBoxOrient: 'vertical',
+                }}>
+                  {board.description}
+                </p>
+              )}
+            </div>
+          </Link>
+        )
+      })}
+
+      {/* New Board — own profile only */}
+      {isOwnProfile && (
+        showCreate ? (
+          /* ── Inline create form ── */
+          <div style={{
+            ...BOARD_CARD_STYLE,
+            border: '1.5px solid var(--menthe)',
+            display: 'flex', flexDirection: 'column', gap: 10,
           }}>
             <div style={{
-              marginBottom: 12, width: 48, height: 48,
-              borderRadius: 14,
+              marginBottom: 4, width: 48, height: 48, borderRadius: 14,
               background: 'var(--brume)',
               display: 'flex', alignItems: 'center', justifyContent: 'center',
-              transition: 'background 150ms',
             }}>
               <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="var(--menthe)" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
                 <path d="M22 19a2 2 0 0 1-2 2H4a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h5l2 3h9a2 2 0 0 1 2 2z"/>
               </svg>
             </div>
-            <p style={{ fontSize: '0.875rem', fontWeight: 700, color: 'var(--text)', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap', margin: '0 0 4px' }}>
-              {board.name}
-            </p>
-            {board.description && (
-              <p style={{
-                fontSize: '0.75rem', color: 'var(--muted)', margin: 0,
-                lineHeight: 1.5, overflow: 'hidden',
-                display: '-webkit-box', WebkitLineClamp: 2, WebkitBoxOrient: 'vertical',
-              }}>
-                {board.description}
-              </p>
+            <input
+              autoFocus
+              value={newBoardName}
+              onChange={e => setNewBoardName(e.target.value)}
+              onKeyDown={e => { if (e.key === 'Enter') handleCreate(); if (e.key === 'Escape') cancelCreate() }}
+              placeholder="Board name…"
+              maxLength={80}
+              style={{
+                width: '100%', padding: '7px 10px',
+                borderRadius: 8, border: '1.5px solid var(--border)',
+                fontSize: '0.875rem', fontWeight: 600, color: 'var(--text)',
+                background: 'var(--surface)', outline: 'none',
+                transition: 'border-color 150ms',
+              }}
+              onFocus={e => { (e.currentTarget as HTMLInputElement).style.borderColor = 'var(--menthe)' }}
+              onBlur={e => { (e.currentTarget as HTMLInputElement).style.borderColor = 'var(--border)' }}
+            />
+            {createError && (
+              <p style={{ margin: 0, fontSize: '0.75rem', color: 'var(--danger)' }}>{createError}</p>
             )}
+            <div style={{ display: 'flex', gap: 6 }}>
+              <button
+                onClick={handleCreate}
+                disabled={creating || !newBoardName.trim()}
+                style={{
+                  flex: 1, padding: '7px 0', borderRadius: 8, border: 'none',
+                  background: creating || !newBoardName.trim() ? 'var(--brume)' : 'var(--menthe)',
+                  color: creating || !newBoardName.trim() ? 'var(--muted)' : '#fff',
+                  fontSize: '0.8125rem', fontWeight: 700,
+                  cursor: creating || !newBoardName.trim() ? 'default' : 'pointer',
+                  transition: 'background 150ms, color 150ms',
+                }}
+              >
+                {creating ? 'Creating…' : 'Create'}
+              </button>
+              <button
+                onClick={cancelCreate}
+                style={{
+                  padding: '7px 12px', borderRadius: 8,
+                  border: '1.5px solid var(--border)', background: 'transparent',
+                  fontSize: '0.8125rem', fontWeight: 600, color: 'var(--muted)',
+                  cursor: 'pointer', transition: 'border-color 150ms',
+                }}
+                onMouseEnter={e => { (e.currentTarget as HTMLButtonElement).style.borderColor = 'var(--menthe)' }}
+                onMouseLeave={e => { (e.currentTarget as HTMLButtonElement).style.borderColor = 'var(--border)' }}
+              >
+                Cancel
+              </button>
+            </div>
           </div>
-        </Link>
-      ))}
+        ) : (
+          /* ── New Board button ── */
+          <button
+            type="button"
+            onClick={() => setShowCreate(true)}
+            style={{
+              ...BOARD_CARD_STYLE,
+              border: '1.5px dashed var(--border)',
+              background: 'transparent',
+              display: 'flex', flexDirection: 'column',
+              cursor: 'pointer', textAlign: 'left',
+              width: '100%',
+              transition: 'border-color 150ms, background 150ms, transform 200ms, box-shadow 200ms',
+            }}
+            onMouseEnter={e => {
+              const el = e.currentTarget as HTMLButtonElement
+              el.style.borderColor = 'var(--menthe)'
+              el.style.background = 'var(--brume)'
+            }}
+            onMouseLeave={e => {
+              const el = e.currentTarget as HTMLButtonElement
+              el.style.borderColor = 'var(--border)'
+              el.style.background = 'transparent'
+            }}
+          >
+            <div style={{
+              marginBottom: 12, width: 48, height: 48, borderRadius: 14,
+              background: 'var(--brume)',
+              display: 'flex', alignItems: 'center', justifyContent: 'center',
+              transition: 'background 150ms',
+            }}>
+              <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="var(--menthe)" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+                <path d="M12 5v14M5 12h14"/>
+              </svg>
+            </div>
+            <p style={{ fontSize: '0.875rem', fontWeight: 700, color: 'var(--menthe)', margin: '0 0 4px' }}>
+              New Board
+            </p>
+            <p style={{ fontSize: '0.75rem', color: 'var(--muted)', margin: 0 }}>
+              Create a collection
+            </p>
+          </button>
+        )
+      )}
     </div>
   )
 }
@@ -320,18 +418,19 @@ function BoardGrid({ boards }: { boards: Board[] }) {
 /* ─────────────────────────────────────────────────────────────
    PROFILE TABS
    ───────────────────────────────────────────────────────────── */
-export default function ProfileTabs({ pins, boards, isOwnProfile }: ProfileTabsProps) {
-  const [activeTab, setActiveTab] = useState<Tab>(isOwnProfile ? 'my-pins' : 'pins')
+export default function ProfileTabs({ pins, boards, isOwnProfile, initialTab }: ProfileTabsProps) {
+  const defaultTab: Tab = initialTab ?? (isOwnProfile ? 'my-pins' : 'pins')
+  const [activeTab, setActiveTab] = useState<Tab>(defaultTab)
+  const [boardList, setBoardList] = useState<Board[]>(boards)
 
   const tabs: { id: Tab; label: string; count?: number }[] = isOwnProfile
     ? [
-        { id: 'my-pins',  label: 'My Pins',    count: pins.length },
-        { id: 'saved',    label: 'Saved Pins' },
-        { id: 'boards',   label: 'Boards',     count: boards.length },
+        { id: 'my-pins', label: 'My Pins',  count: pins.length },
+        { id: 'boards',  label: 'Boards',   count: boardList.length },
       ]
     : [
         { id: 'pins',   label: 'Pins',   count: pins.length },
-        { id: 'boards', label: 'Boards', count: boards.length },
+        { id: 'boards', label: 'Boards', count: boardList.length },
       ]
 
   return (
@@ -390,9 +489,8 @@ export default function ProfileTabs({ pins, boards, isOwnProfile }: ProfileTabsP
 
       {/* Tab content */}
       {activeTab === 'my-pins' && <MyPinsGrid initialPins={pins} />}
-      {activeTab === 'saved'   && <SavedPinsTab />}
       {activeTab === 'pins'    && <ReadOnlyPinGrid pins={pins} />}
-      {activeTab === 'boards'  && <BoardGrid boards={boards} />}
+      {activeTab === 'boards'  && <BoardGrid boards={boardList} onBoardAdded={b => setBoardList(prev => [...prev, b])} isOwnProfile={isOwnProfile} />}
 
       {/* Hover reveal for remove button */}
       <style>{`

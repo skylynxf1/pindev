@@ -5,9 +5,11 @@ import type { Metadata } from 'next'
 import { createClient } from '@/lib/supabase/server'
 import type { Pin, Board, Profile } from '@/types'
 import ProfileTabs from '@/components/profile/ProfileTabs'
+import ProfileHeaderActions from '@/components/profile/ProfileHeaderActions'
 
 interface Props {
   params: Promise<{ username: string }>
+  searchParams: Promise<{ tab?: string }>
 }
 
 // ── Data fetchers ─────────────────────────────────────────────────────────────
@@ -78,6 +80,42 @@ async function getPublicBoards(ownerId: string): Promise<Board[]> {
   return data as Board[]
 }
 
+async function getFollowStats(profileId: string, currentUserId: string | null) {
+  try {
+    const supabase = await createClient()
+
+    const [followerResult, followingResult] = await Promise.all([
+      supabase
+        .from('follows')
+        .select('*', { count: 'exact', head: true })
+        .eq('following_id', profileId),
+      supabase
+        .from('follows')
+        .select('*', { count: 'exact', head: true })
+        .eq('follower_id', profileId),
+    ])
+
+    let is_following = false
+    if (currentUserId) {
+      const { data: followRow } = await supabase
+        .from('follows')
+        .select('follower_id')
+        .eq('follower_id', currentUserId)
+        .eq('following_id', profileId)
+        .maybeSingle()
+      is_following = !!followRow
+    }
+
+    return {
+      follower_count: followerResult.count ?? 0,
+      following_count: followingResult.count ?? 0,
+      is_following,
+    }
+  } catch {
+    return { follower_count: 0, following_count: 0, is_following: false }
+  }
+}
+
 // ── Metadata ──────────────────────────────────────────────────────────────────
 
 export async function generateMetadata({ params }: Props): Promise<Metadata> {
@@ -103,8 +141,9 @@ export async function generateMetadata({ params }: Props): Promise<Metadata> {
 
 // ── Page ──────────────────────────────────────────────────────────────────────
 
-export default async function ProfilePage({ params }: Props) {
+export default async function ProfilePage({ params, searchParams }: Props) {
   const { username } = await params
+  const { tab } = await searchParams
 
   const profile = await getProfile(username)
   if (!profile) notFound()
@@ -113,9 +152,10 @@ export default async function ProfilePage({ params }: Props) {
   const { data: { user: currentUser } } = await supabase.auth.getUser()
   const isOwnProfile = currentUser?.id === profile.id
 
-  const [pins, boards] = await Promise.all([
+  const [pins, boards, followStats] = await Promise.all([
     getProfilePins(profile.id),
     getPublicBoards(profile.id),
+    getFollowStats(profile.id, currentUser?.id ?? null),
   ])
 
   const displayName = profile.display_name || profile.username
@@ -197,61 +237,22 @@ export default async function ProfilePage({ params }: Props) {
               )}
 
               {/* Stats + actions row */}
-              <div style={{ display: 'flex', alignItems: 'center', gap: 14, flexWrap: 'wrap' }}>
-                {/* Stats pills */}
-                <div style={{
-                  display: 'inline-flex', alignItems: 'center',
-                  borderRadius: 12, overflow: 'hidden',
-                  background: 'rgba(255,255,255,0.7)',
-                  border: '1px solid var(--border)',
-                }}>
-                  <div style={{ padding: '8px 16px', textAlign: 'center' }}>
-                    <span style={{ display: 'block', fontSize: '1.125rem', fontWeight: 800, color: 'var(--text)', lineHeight: 1.2 }}>
-                      {pins.length}
-                    </span>
-                    <span style={{ fontSize: '0.6875rem', fontWeight: 600, color: 'var(--muted)', textTransform: 'uppercase', letterSpacing: '0.05em' }}>
-                      Pins
-                    </span>
-                  </div>
-                  <div style={{ width: 1, height: 28, background: 'var(--border)' }} />
-                  <div style={{ padding: '8px 16px', textAlign: 'center' }}>
-                    <span style={{ display: 'block', fontSize: '1.125rem', fontWeight: 800, color: 'var(--text)', lineHeight: 1.2 }}>
-                      {boards.length}
-                    </span>
-                    <span style={{ fontSize: '0.6875rem', fontWeight: 600, color: 'var(--muted)', textTransform: 'uppercase', letterSpacing: '0.05em' }}>
-                      Boards
-                    </span>
-                  </div>
-                </div>
-
-                {/* Edit profile button (own profile only) */}
-                {isOwnProfile && (
-                  <Link
-                    href="/settings/profile"
-                    style={{
-                      display: 'inline-flex', alignItems: 'center', gap: 6,
-                      padding: '8px 18px', borderRadius: 10,
-                      background: 'rgba(255,255,255,0.7)',
-                      border: '1px solid var(--border)',
-                      fontSize: '0.8125rem', fontWeight: 600,
-                      color: 'var(--text)', textDecoration: 'none',
-                      transition: 'all 150ms',
-                    }}
-                  >
-                    <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.2" strokeLinecap="round" strokeLinejoin="round">
-                      <path d="M11 4H4a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h14a2 2 0 0 0 2-2v-7"/>
-                      <path d="M18.5 2.5a2.121 2.121 0 0 1 3 3L12 15l-4 1 1-4 9.5-9.5z"/>
-                    </svg>
-                    Edit profile
-                  </Link>
-                )}
-              </div>
+              <ProfileHeaderActions
+                profile={profile}
+                pinCount={pins.length}
+                boardCount={boards.length}
+                followerCount={followStats.follower_count}
+                followingCount={followStats.following_count}
+                isOwnProfile={isOwnProfile}
+                initialIsFollowing={followStats.is_following}
+                currentUserId={currentUser?.id ?? null}
+              />
             </div>
           </div>
         </div>
 
         {/* ── Tabs ── */}
-        <ProfileTabs pins={pins} boards={boards} isOwnProfile={isOwnProfile} />
+        <ProfileTabs pins={pins} boards={boards} isOwnProfile={isOwnProfile} initialTab={tab === 'boards' ? 'boards' : undefined} />
       </div>
     </main>
   )
