@@ -1,6 +1,7 @@
 import { z } from 'zod'
 
-const MAX_FILE_SIZE_BYTES = 50 * 1024 * 1024 // 50 MB
+const MAX_IMAGE_SIZE_BYTES = 10 * 1024 * 1024 // 10 MB
+const MAX_VIDEO_SIZE_BYTES = 50 * 1024 * 1024 // 50 MB
 
 const ALLOWED_IMAGE_TYPES = ['image/jpeg', 'image/png', 'image/webp'] as const
 const ALLOWED_VIDEO_TYPES = ['video/mp4', 'video/webm'] as const
@@ -71,8 +72,11 @@ export function validateMediaFile(file: File): string | null {
   if (!ALLOWED_MEDIA_TYPES.includes(file.type as AllowedMediaType)) {
     return `File type "${file.type}" is not allowed. Use JPG, PNG, WebP, MP4, or WebM.`
   }
-  if (file.size > MAX_FILE_SIZE_BYTES) {
-    return `File is too large (${(file.size / 1024 / 1024).toFixed(1)} MB). Maximum is 50 MB.`
+  const isVid = ALLOWED_VIDEO_TYPES.includes(file.type as (typeof ALLOWED_VIDEO_TYPES)[number])
+  const maxSize = isVid ? MAX_VIDEO_SIZE_BYTES : MAX_IMAGE_SIZE_BYTES
+  if (file.size > maxSize) {
+    const maxMB = maxSize / 1024 / 1024
+    return `File is too large (${(file.size / 1024 / 1024).toFixed(1)} MB). Maximum is ${maxMB} MB for ${isVid ? 'video' : 'image'} files.`
   }
   return null
 }

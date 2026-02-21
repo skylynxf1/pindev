@@ -1,6 +1,6 @@
 'use client'
 
-import { useState, useRef, useCallback, useEffect } from 'react'
+import { useState, useRef, useCallback, useEffect, useMemo } from 'react'
 import { useRouter, useSearchParams } from 'next/navigation'
 import Image from 'next/image'
 import Link from 'next/link'
@@ -117,6 +117,259 @@ function StyledTextarea(props: React.TextareaHTMLAttributes<HTMLTextAreaElement>
 }
 
 /* ─────────────────────────────────────────────────────────────
+   VIDEO EDITOR
+   ───────────────────────────────────────────────────────────── */
+
+const ASPECT_RATIOS = [
+  { label: 'Original', value: 'original' },
+  { label: '16 : 9',   value: '16:9' },
+  { label: '4 : 3',    value: '4:3' },
+  { label: '1 : 1',    value: '1:1' },
+  { label: '9 : 16',   value: '9:16' },
+] as const
+type AR = typeof ASPECT_RATIOS[number]['value']
+
+function fmtTime(s: number) {
+  const m = Math.floor(s / 60)
+  return `${m}:${String(Math.floor(s % 60)).padStart(2, '0')}`
+}
+
+function VideoEditorPanel({
+  file,
+  onApply,
+  onCancel,
+}: {
+  file: File
+  onApply: (blob: Blob, thumb: Blob | null) => void
+  onCancel: () => void
+}) {
+  const [dur, setDur] = useState(0)
+  const [t0, setT0] = useState(0)
+  const [t1, setT1] = useState(0)
+  const [ar, setAr] = useState<AR>('original')
+  const [processing, setProcessing] = useState(false)
+  const [pct, setPct] = useState(0)
+  const previewRef = useRef<HTMLVideoElement>(null)
+
+  useEffect(() => {
+    const url = URL.createObjectURL(file)
+    if (previewRef.current) previewRef.current.src = url
+    const v = document.createElement('video')
+    v.preload = 'metadata'
+    v.onloadedmetadata = () => {
+      const d = isFinite(v.duration) ? v.duration : 0
+      setDur(d); setT0(0); setT1(d)
+    }
+    v.src = url
+    return () => URL.revokeObjectURL(url)
+  }, [file])
+
+  useEffect(() => {
+    if (previewRef.current && dur > 0) previewRef.current.currentTime = t0
+  }, [t0, dur])
+
+  const trimSec = Math.max(0, t1 - t0)
+  const estMB = (file.size * (dur > 0 ? trimSec / dur : 1)) / 1024 / 1024
+  const overLimit = estMB > 50
+
+  async function apply() {
+    setProcessing(true); setPct(0)
+    try {
+      const blob = await processVideoClip(file, t0, t1, ar, (elapsed) =>
+        setPct(Math.min(99, Math.round((elapsed / trimSec) * 100)))
+      )
+      if (blob.size > 50 * 1024 * 1024) {
+        alert(`Processed video is ${formatBytes(blob.size)}, over the 50 MB limit. Trim more or reduce crop.`)
+        setProcessing(false); return
+      }
+      const thumb = await captureFrameAt(file, t0)
+      onApply(blob, thumb)
+    } catch {
+      alert('Processing failed. Please try again.')
+    } finally {
+      setProcessing(false)
+    }
+  }
+
+  return (
+    <div style={{ marginTop: 16, borderRadius: 16, border: '1.5px solid var(--menthe)', background: 'var(--surface)', overflow: 'hidden' }}>
+      <div style={{ padding: '10px 16px', background: 'var(--menthe-light, #e6f9f6)', borderBottom: '1px solid var(--border)', fontSize: '0.75rem', fontWeight: 700, letterSpacing: '0.08em', textTransform: 'uppercase', color: 'var(--menthe)' }}>
+        ✂ Trim &amp; Crop
+      </div>
+
+      <div style={{ background: '#000' }}>
+        <video ref={previewRef} muted playsInline style={{ display: 'block', width: '100%', maxHeight: 200, objectFit: 'contain' }} />
+      </div>
+
+      <div style={{ padding: '16px 20px', display: 'flex', flexDirection: 'column', gap: 14 }}>
+
+        {/* Trim */}
+        <div>
+          <div style={{ fontSize: '0.68rem', fontWeight: 700, letterSpacing: '0.1em', textTransform: 'uppercase', color: 'var(--text)', marginBottom: 8 }}>Trim</div>
+          {([
+            { label: 'Start', val: t0, onChange: (v: number) => setT0(Math.min(v, t1 - 0.5)), min: 0,  max: dur },
+            { label: 'End',   val: t1, onChange: (v: number) => setT1(Math.max(v, t0 + 0.5)), min: 0,  max: dur },
+          ] as Array<{ label: string; val: number; onChange: (v: number) => void; min: number; max: number }>).map(({ label, val, onChange, min, max }) => (
+            <div key={label} style={{ display: 'grid', gridTemplateColumns: '44px 1fr 46px', gap: 8, alignItems: 'center', marginBottom: 5 }}>
+              <span style={{ fontSize: '0.75rem', color: 'var(--muted)' }}>{label}</span>
+              <input type="range" min={min} max={max} step={0.1} value={val}
+                onChange={e => onChange(Number(e.target.value))}
+                style={{ accentColor: 'var(--menthe)', width: '100%' }} />
+              <span style={{ fontSize: '0.72rem', color: 'var(--text)', fontVariantNumeric: 'tabular-nums', textAlign: 'right' }}>{fmtTime(val)}</span>
+            </div>
+          ))}
+          <div style={{ display: 'flex', justifyContent: 'space-between', fontSize: '0.72rem', marginTop: 4 }}>
+            <span style={{ color: 'var(--muted)' }}>Duration: <strong>{fmtTime(trimSec)}</strong></span>
+            <span style={{ color: overLimit ? '#ef4444' : 'var(--muted)', fontWeight: overLimit ? 600 : 400 }}>
+              ~{estMB.toFixed(1)} MB{overLimit ? ' — exceeds 50 MB limit' : ''}
+            </span>
+          </div>
+        </div>
+
+        {/* Crop */}
+        <div>
+          <div style={{ fontSize: '0.68rem', fontWeight: 700, letterSpacing: '0.1em', textTransform: 'uppercase', color: 'var(--text)', marginBottom: 8 }}>Crop</div>
+          <div style={{ display: 'flex', gap: 6, flexWrap: 'wrap' }}>
+            {ASPECT_RATIOS.map(({ label, value }) => (
+              <button key={value} type="button" onClick={() => setAr(value)} style={{
+                padding: '5px 12px', borderRadius: 8,
+                border: `1.5px solid ${ar === value ? 'var(--menthe)' : 'var(--border)'}`,
+                background: ar === value ? 'var(--menthe)' : 'var(--surface)',
+                color: ar === value ? '#fff' : 'var(--text)',
+                fontSize: '0.75rem', fontWeight: 600, cursor: 'pointer', transition: 'all 100ms',
+              }}>{label}</button>
+            ))}
+          </div>
+        </div>
+
+        {/* Progress */}
+        {processing && (
+          <div>
+            <div style={{ display: 'flex', justifyContent: 'space-between', fontSize: '0.72rem', color: 'var(--muted)', marginBottom: 5 }}>
+              <span>Processing…</span><span>{pct}%</span>
+            </div>
+            <div style={{ height: 4, borderRadius: 2, background: 'var(--border)', overflow: 'hidden' }}>
+              <div style={{ height: '100%', width: `${pct}%`, background: 'var(--menthe)', transition: 'width 150ms' }} />
+            </div>
+          </div>
+        )}
+
+        {/* Actions */}
+        <div style={{ display: 'flex', gap: 10 }}>
+          <button type="button" onClick={apply} disabled={processing || trimSec <= 0} style={{
+            flex: 1, padding: '10px', borderRadius: 10, border: 'none',
+            background: 'var(--menthe)', color: '#fff', fontWeight: 700, fontSize: '0.875rem',
+            cursor: processing ? 'not-allowed' : 'pointer', opacity: processing ? 0.7 : 1,
+          }}>
+            {processing ? 'Processing…' : 'Apply'}
+          </button>
+          <button type="button" onClick={onCancel} disabled={processing} style={{
+            flex: 1, padding: '10px', borderRadius: 10,
+            border: '1.5px solid var(--border)', background: 'var(--surface)',
+            color: 'var(--text)', fontWeight: 600, fontSize: '0.875rem',
+            cursor: processing ? 'not-allowed' : 'pointer',
+          }}>
+            Cancel
+          </button>
+        </div>
+      </div>
+    </div>
+  )
+}
+
+async function processVideoClip(
+  file: File,
+  t0: number,
+  t1: number,
+  ar: AR,
+  onProgress: (elapsed: number) => void,
+): Promise<Blob> {
+  return new Promise((resolve, reject) => {
+    const url = URL.createObjectURL(file)
+    const video = document.createElement('video')
+    video.preload = 'auto'
+    video.muted = true
+    video.playsInline = true
+
+    video.onloadedmetadata = () => {
+      const vW = video.videoWidth || 1280
+      const vH = video.videoHeight || 720
+      let srcX = 0, srcY = 0, srcW = vW, srcH = vH, outW = vW, outH = vH
+
+      if (ar !== 'original') {
+        const [rw, rh] = ar.split(':').map(Number)
+        const tAR = rw / rh, vAR = vW / vH
+        if (vAR > tAR) {
+          srcH = vH; srcW = Math.round(vH * tAR); srcX = Math.round((vW - srcW) / 2); srcY = 0
+        } else {
+          srcW = vW; srcH = Math.round(vW / tAR); srcX = 0; srcY = Math.round((vH - srcH) / 2)
+        }
+        outW = Math.min(srcW, 1280); outH = Math.round(outW / tAR)
+      }
+
+      const canvas = document.createElement('canvas')
+      canvas.width = outW; canvas.height = outH
+      const ctx = canvas.getContext('2d')
+      if (!ctx) { URL.revokeObjectURL(url); reject(new Error('No canvas context')); return }
+
+      const mimeType = MediaRecorder.isTypeSupported('video/webm;codecs=vp9')
+        ? 'video/webm;codecs=vp9' : 'video/webm'
+      const recorder = new MediaRecorder(canvas.captureStream(30), { mimeType, videoBitsPerSecond: 2_500_000 })
+      const chunks: Blob[] = []
+      recorder.ondataavailable = e => { if (e.data.size > 0) chunks.push(e.data) }
+      recorder.onstop = () => { URL.revokeObjectURL(url); resolve(new Blob(chunks, { type: 'video/webm' })) }
+
+      let started = false
+      function startRecording() {
+        if (started) return; started = true
+        recorder.start(200)
+        video.play().catch(reject)
+        let rafId: number
+        function draw() {
+          if (video.currentTime >= t1 || video.ended) {
+            cancelAnimationFrame(rafId); video.pause(); recorder.stop(); return
+          }
+          onProgress(video.currentTime - t0)
+          ctx.drawImage(video, srcX, srcY, srcW, srcH, 0, 0, outW, outH)
+          rafId = requestAnimationFrame(draw)
+        }
+        draw()
+      }
+
+      video.addEventListener('seeked', startRecording, { once: true })
+      video.currentTime = t0 > 0.05 ? t0 : 0.05
+      // Fallback if seeked doesn't fire (seeking to near t=0)
+      setTimeout(startRecording, 600)
+    }
+
+    video.onerror = () => { URL.revokeObjectURL(url); reject(new Error('Video load failed')) }
+    video.src = url
+    video.load()
+  })
+}
+
+async function captureFrameAt(file: File, time: number): Promise<Blob | null> {
+  return new Promise(resolve => {
+    const url = URL.createObjectURL(file)
+    const video = document.createElement('video')
+    video.preload = 'metadata'; video.muted = true; video.playsInline = true
+    video.onloadedmetadata = () => { video.currentTime = Math.min(time > 0 ? time : 0.05, video.duration - 0.01) }
+    video.onseeked = () => {
+      try {
+        const c = document.createElement('canvas')
+        c.width = video.videoWidth || 1280; c.height = video.videoHeight || 720
+        const ctx = c.getContext('2d')
+        if (!ctx) { URL.revokeObjectURL(url); resolve(null); return }
+        ctx.drawImage(video, 0, 0, c.width, c.height)
+        c.toBlob(blob => { URL.revokeObjectURL(url); resolve(blob) }, 'image/jpeg', 0.85)
+      } catch { URL.revokeObjectURL(url); resolve(null) }
+    }
+    video.onerror = () => { URL.revokeObjectURL(url); resolve(null) }
+    video.src = url
+  })
+}
+
+/* ─────────────────────────────────────────────────────────────
    MAIN PAGE
    ───────────────────────────────────────────────────────────── */
 export default function UploadPage() {
@@ -139,6 +392,7 @@ export default function UploadPage() {
   const [isVideo, setIsVideo] = useState(false)
   const [thumbGenerated, setThumbGenerated] = useState(false)
   const [editLoading, setEditLoading] = useState(false)
+  const [showVideoEditor, setShowVideoEditor] = useState(false)
 
   const [mediaDragOver, setMediaDragOver] = useState(false)
   const [thumbDragOver, setThumbDragOver] = useState(false)
@@ -194,7 +448,7 @@ export default function UploadPage() {
     setIsVideo(video)
     setMediaFile(file)
     setMediaPreview(URL.createObjectURL(file))
-    setThumbnailFile(null); setThumbnailPreview(null); setThumbGenerated(false)
+    setThumbnailFile(null); setThumbnailPreview(null); setThumbGenerated(false); setShowVideoEditor(false)
     if (video) {
       const warning = await checkVideoDuration(file)
       if (warning) setFieldErrors(p => ({ ...p, durationWarning: warning }))
@@ -396,6 +650,31 @@ export default function UploadPage() {
                       Existing image · click to replace
                     </p>
                   ) : null}
+                  {isVideo && mediaFile && (
+                    <div style={{ padding: '0 16px 12px', display: 'flex', justifyContent: 'center' }}>
+                      <button
+                        type="button"
+                        onClick={e => { e.stopPropagation(); setShowVideoEditor(v => !v) }}
+                        style={{
+                          display: 'flex', alignItems: 'center', gap: 6,
+                          padding: '7px 18px', borderRadius: 9999,
+                          border: '1.5px solid var(--menthe)',
+                          background: showVideoEditor ? 'var(--menthe)' : 'var(--menthe-light, #e6f9f6)',
+                          color: showVideoEditor ? '#fff' : 'var(--menthe)',
+                          fontSize: '0.8125rem', fontWeight: 700,
+                          cursor: 'pointer', transition: 'all 120ms',
+                        }}
+                      >
+                        <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round">
+                          <circle cx="6" cy="6" r="3"/><circle cx="6" cy="18" r="3"/>
+                          <line x1="20" y1="4" x2="8.12" y2="15.88"/>
+                          <line x1="14.47" y1="14.48" x2="20" y2="20"/>
+                          <line x1="8.12" y1="8.12" x2="12" y2="12"/>
+                        </svg>
+                        {showVideoEditor ? 'Close editor' : 'Trim & Crop'}
+                      </button>
+                    </div>
+                  )}
                 </div>
               ) : (
                 <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', gap: 12, padding: '60px 40px', textAlign: 'center' }}>
@@ -433,6 +712,24 @@ export default function UploadPage() {
                 }}
               />
             </div>
+            {showVideoEditor && mediaFile && isVideo && (
+              <VideoEditorPanel
+                file={mediaFile}
+                onApply={(blob, thumb) => {
+                  const ext = blob.type.includes('webm') ? 'webm' : 'mp4'
+                  const processed = new File([blob], `edited.${ext}`, { type: blob.type })
+                  setMediaFile(processed)
+                  setMediaPreview(URL.createObjectURL(blob))
+                  if (thumb) {
+                    setThumbnailFile(new File([thumb], 'thumbnail.jpg', { type: 'image/jpeg' }))
+                    setThumbnailPreview(URL.createObjectURL(thumb))
+                    setThumbGenerated(true)
+                  }
+                  setShowVideoEditor(false)
+                }}
+                onCancel={() => setShowVideoEditor(false)}
+              />
+            )}
             <FieldError message={fieldErrors.media ?? null} />
             {fieldErrors.durationWarning && (
               <p style={{ marginTop: 6, fontSize: '0.75rem', color: '#d97706' }}>⚠ {fieldErrors.durationWarning}</p>

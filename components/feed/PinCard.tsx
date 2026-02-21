@@ -200,14 +200,26 @@ export default function PinCard({ pin, onSave, currentUserId, onDelete, onUnsave
             }}
             onClick={() => setFlipped(true)}
           >
-            <Image
-              src={pin.thumbnail_url}
-              alt={pin.title || 'Project preview'}
-              width={400}
-              height={300}
-              className="w-full h-auto object-cover"
-              unoptimized
-            />
+            {pin.media_type === 'video' ? (
+              <video
+                src={pin.media_url}
+                poster={pin.thumbnail_url}
+                autoPlay
+                muted
+                loop
+                playsInline
+                style={{ width: '100%', height: 'auto', display: 'block', objectFit: 'cover' }}
+              />
+            ) : (
+              <Image
+                src={pin.thumbnail_url}
+                alt={pin.title || 'Project preview'}
+                width={400}
+                height={300}
+                className="w-full h-auto object-cover"
+                unoptimized
+              />
+            )}
 
             {/* Hover overlay */}
             <div

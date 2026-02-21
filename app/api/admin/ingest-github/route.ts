@@ -26,7 +26,15 @@ export async function POST(req: Request) {
     return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
   }
 
-  const supabase = createAdminClient();
+  let supabase: ReturnType<typeof createAdminClient>;
+  try {
+    supabase = createAdminClient();
+  } catch (err) {
+    return NextResponse.json(
+      { error: err instanceof Error ? err.message : "Admin client init failed" },
+      { status: 500 }
+    );
+  }
 
   // Fetch GitHub trending repos (active in last 30 days, 200+ stars)
   const since = daysAgo(30);

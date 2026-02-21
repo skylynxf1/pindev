@@ -20,7 +20,7 @@ async function searchShowHN(query: string, minPoints = 15): Promise<HNHit[]> {
   const params = new URLSearchParams({
     tags: "show_hn",
     query,
-    hitsPerPage: "15",
+    hitsPerPage: "20",
     numericFilters: `points>${minPoints}`,
   });
   try {
@@ -92,15 +92,25 @@ async function fetchOgImage(url: string): Promise<string | null> {
 // Each entry: the HN search term + tags to attach to drafted pins
 
 const QUERIES: Array<{ q: string; tags: string[] }> = [
-  { q: "vibecoding",                        tags: ["vibecoding"] },
-  { q: "vibe coding app",                   tags: ["vibecoding", "app"] },
-  { q: "mini game browser playable",        tags: ["app"] },
-  { q: "interactive playground simulator",  tags: ["website", "app"] },
-  { q: "css animation creative art",        tags: ["website"] },
-  { q: "webgl three.js canvas experiment",  tags: ["website"] },
-  { q: "indie game weekend",               tags: ["app"] },
-  { q: "ai tool built weekend",            tags: ["ai-tool", "app"] },
-  { q: "cursor claude vibe",              tags: ["vibecoding", "ai-tool"] },
+  // Vibecoding / AI-built
+  { q: "built with claude",              tags: ["vibecoding", "ai-tool"] },
+  { q: "built with cursor",              tags: ["vibecoding", "ai-tool"] },
+  { q: "vibe coding",                    tags: ["vibecoding"] },
+  { q: "built with ai weekend",          tags: ["vibecoding", "ai-tool"] },
+  // Mini games / playable
+  { q: "browser game playable",          tags: ["app"] },
+  { q: "pixel art game",                 tags: ["app"] },
+  { q: "indie game",                     tags: ["app"] },
+  { q: "puzzle game",                    tags: ["app"] },
+  // Interactive / UX / visual
+  { q: "interactive visualization",      tags: ["website"] },
+  { q: "generative art",                 tags: ["website"] },
+  { q: "css animation",                  tags: ["website"] },
+  { q: "webgl canvas",                   tags: ["website"] },
+  { q: "music synth web",                tags: ["website", "app"] },
+  // Weekend / side projects people love
+  { q: "side project",                   tags: ["app"] },
+  { q: "open source tool",               tags: ["app"] },
 ];
 
 // ── Route ────────────────────────────────────────────────────────────────────

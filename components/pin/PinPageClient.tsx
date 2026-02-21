@@ -100,8 +100,11 @@ export default function PinPageClient({ pin }: { pin: Pin }) {
               <video
                 src={pin.media_url}
                 poster={pin.thumbnail_url}
-                controls
+                autoPlay
+                muted
+                loop
                 playsInline
+                controls
                 style={{ width: '100%', height: 'auto', objectFit: 'contain', maxHeight: '72vh', display: 'block' }}
               />
             ) : (

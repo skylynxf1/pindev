@@ -92,13 +92,12 @@ export default function AdminPinDraftsPage() {
         setIngestErr(json.error || "Ingestion failed");
       } else {
         setIngestResult(json);
-        await load();
-        return;
       }
     } catch (e: unknown) {
       setIngestErr(e instanceof Error ? e.message : "Unknown error");
     } finally {
       setIngesting(null);
+      await load(); // always refresh drafts after ingest
     }
   }
 

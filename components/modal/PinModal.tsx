@@ -85,8 +85,11 @@ export default function PinModal({ pinId }: PinModalProps) {
                 <video
                   src={pin.media_url}
                   poster={pin.thumbnail_url}
-                  controls
+                  autoPlay
+                  muted
+                  loop
                   playsInline
+                  controls
                   className="w-full h-full object-contain max-h-[70vh]"
                 />
               ) : (
