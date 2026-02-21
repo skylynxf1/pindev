@@ -14,29 +14,42 @@ function toTitleCase(str: string) {
     .replace(/\b\w/g, (c) => c.toUpperCase());
 }
 
-/** Try to fetch the og:image from a live URL. Returns null on failure. */
+/** Try to fetch the og:image from a live URL. Returns null on any failure. */
 async function fetchOgImage(url: string): Promise<string | null> {
+  // Use AbortController + setTimeout — universally supported across all Node versions
+  const controller = new AbortController();
+  const timer = setTimeout(() => controller.abort(), 5000);
   try {
     const res = await fetch(url, {
-      headers: { "User-Agent": "Mozilla/5.0 (compatible; PinDev/1.0; +https://pindev.app)" },
-      signal: AbortSignal.timeout(6000),
+      headers: { "User-Agent": "Mozilla/5.0 (compatible; PinDev/1.0)" },
+      signal: controller.signal,
     });
-    if (!res.ok) return null;
-    const html = await res.text();
-    // Match og:image in either attribute order
+    clearTimeout(timer);
+    if (!res.ok) { res.body?.cancel(); return null; }
+
+    // Stream only the first 50 KB so we don't download entire pages
+    const reader = res.body?.getReader();
+    if (!reader) return null;
+    const decoder = new TextDecoder();
+    let html = "";
+    const MAX = 50 * 1024;
+    while (html.length < MAX) {
+      const { done, value } = await reader.read();
+      if (done || !value) break;
+      html += decoder.decode(value, { stream: !done });
+      if (html.includes("og:image")) break; // early exit once we have what we need
+    }
+    reader.cancel().catch(() => {});
+
     const match =
       html.match(/<meta[^>]+property=["']og:image["'][^>]+content=["']([^"']+)["']/i) ??
       html.match(/<meta[^>]+content=["']([^"']+)["'][^>]+property=["']og:image["']/i);
     if (!match?.[1]) return null;
     const imgUrl = match[1].trim();
     if (imgUrl.startsWith("http")) return imgUrl;
-    // Resolve relative URLs
-    try {
-      return new URL(imgUrl, new URL(url).origin).href;
-    } catch {
-      return null;
-    }
+    try { return new URL(imgUrl, new URL(url).origin).href; } catch { return null; }
   } catch {
+    clearTimeout(timer);
     return null;
   }
 }
@@ -70,6 +83,18 @@ export async function POST(req: Request) {
     return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
   }
 
+  try {
+    return await ingest();
+  } catch (err) {
+    console.error("[ingest-ui] unhandled error:", err);
+    return NextResponse.json(
+      { error: err instanceof Error ? err.message : "Internal server error" },
+      { status: 500 }
+    );
+  }
+}
+
+async function ingest() {
   const supabase = createAdminClient();
   const since = daysAgo(90); // broader window for design content
 
