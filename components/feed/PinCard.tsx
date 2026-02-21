@@ -4,6 +4,7 @@ import { useState, useEffect, useRef } from 'react'
 import Image from 'next/image'
 import Link from 'next/link'
 import type { Pin, Tag } from '@/types'
+import EditPinModal from './EditPinModal'
 
 /* ─────────────────────────────────────────────────────────────
    CATEGORY DETECTION
@@ -110,10 +111,12 @@ interface PinCardProps {
   currentUserId?: string
   onDelete?: (id: string) => void
   onUnsave?: (id: string) => void
+  onEdit?: (updated: Pin) => void
   initialSaved?: boolean
 }
 
-export default function PinCard({ pin, onSave, currentUserId, onDelete, onUnsave, initialSaved }: PinCardProps) {
+export default function PinCard({ pin: initialPin, onSave, currentUserId, onDelete, onUnsave, onEdit, initialSaved }: PinCardProps) {
+  const [pin, setPin] = useState(initialPin)
   const [flipped, setFlipped] = useState(false)
   const [hovered, setHovered] = useState(false)
   const [confirmDelete, setConfirmDelete] = useState(false)
@@ -121,8 +124,12 @@ export default function PinCard({ pin, onSave, currentUserId, onDelete, onUnsave
   const [saved, setSaved] = useState(initialSaved ?? false)
   const [saving, setSaving] = useState(false)
   const [unsaving, setUnsaving] = useState(false)
+  const [showEditModal, setShowEditModal] = useState(false)
   const category = getCategoryFromTags(pin.tags)
   const isOwner = !!currentUserId && currentUserId === pin.owner_id
+
+  // Keep pin in sync when parent updates
+  useEffect(() => { setPin(initialPin) }, [initialPin])
 
   // Sync saved state when initialSaved loads asynchronously
   useEffect(() => {
@@ -310,29 +317,6 @@ export default function PinCard({ pin, onSave, currentUserId, onDelete, onUnsave
                     <path d="M18 6 6 18M6 6l12 12"/>
                   </svg>
                 </button>
-              )}
-
-              {/* Edit button — owner only */}
-              {isOwner && (
-                <Link
-                  href={`/create?edit=${pin.id}`}
-                  onClick={e => e.stopPropagation()}
-                  title="Edit pin"
-                  style={{
-                    display: 'flex', alignItems: 'center', justifyContent: 'center',
-                    borderRadius: 14, padding: '5px 8px',
-                    color: '#fff', textDecoration: 'none',
-                    background: 'rgba(0,0,0,0.55)',
-                    transition: 'background 150ms',
-                  }}
-                  onMouseEnter={e => { (e.currentTarget as HTMLElement).style.background = 'rgba(0,0,0,0.78)' }}
-                  onMouseLeave={e => { (e.currentTarget as HTMLElement).style.background = 'rgba(0,0,0,0.55)' }}
-                >
-                  <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round">
-                    <path d="M11 4H4a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h14a2 2 0 0 0 2-2v-7"/>
-                    <path d="M18.5 2.5a2.121 2.121 0 0 1 3 3L12 15l-4 1 1-4 9.5-9.5z"/>
-                  </svg>
-                </Link>
               )}
 
               {/* Delete button — owner only */}
@@ -558,6 +542,35 @@ export default function PinCard({ pin, onSave, currentUserId, onDelete, onUnsave
 
           <div style={{ flex: 1 }} />
 
+          {/* Edit button — owner only, on back face */}
+          {isOwner && (
+            <button
+              type="button"
+              onClick={e => { e.stopPropagation(); setShowEditModal(true) }}
+              style={{
+                display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 6,
+                padding: '8px 12px',
+                borderRadius: 10,
+                border: '1.5px solid var(--border)',
+                background: 'var(--surface)',
+                color: 'var(--text)',
+                fontSize: '0.8rem',
+                fontWeight: 600,
+                cursor: 'pointer',
+                transition: 'border-color 150ms, background 150ms',
+                width: '100%',
+              }}
+              onMouseEnter={e => { (e.currentTarget as HTMLElement).style.borderColor = 'var(--menthe)'; (e.currentTarget as HTMLElement).style.color = 'var(--menthe)' }}
+              onMouseLeave={e => { (e.currentTarget as HTMLElement).style.borderColor = 'var(--border)'; (e.currentTarget as HTMLElement).style.color = 'var(--text)' }}
+            >
+              <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round">
+                <path d="M11 4H4a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h14a2 2 0 0 0 2-2v-7"/>
+                <path d="M18.5 2.5a2.121 2.121 0 0 1 3 3L12 15l-4 1 1-4 9.5-9.5z"/>
+              </svg>
+              Edit
+            </button>
+          )}
+
           {/* CTA links */}
           <div style={{ display: 'flex', gap: 8 }}>
             <a
@@ -665,6 +678,20 @@ export default function PinCard({ pin, onSave, currentUserId, onDelete, onUnsave
       </div>
 
       <style>{`@keyframes spin { to { transform: rotate(360deg) } }`}</style>
+
+      {/* Edit modal */}
+      {showEditModal && (
+        <EditPinModal
+          pin={pin}
+          onClose={() => setShowEditModal(false)}
+          onSaved={updated => {
+            setPin(updated)
+            setShowEditModal(false)
+            setFlipped(false)
+            onEdit?.(updated)
+          }}
+        />
+      )}
     </div>
   )
 }

@@ -14,6 +14,7 @@ interface MasonryGridProps {
   currentUserId?: string
   onDelete?: (id: string) => void
   onUnsave?: (id: string) => void
+  onEdit?: (updated: Pin) => void
   allSaved?: boolean
   savedPinIds?: Set<string>
   emptyText?: string
@@ -84,6 +85,7 @@ export default function MasonryGrid({
   currentUserId,
   onDelete,
   onUnsave,
+  onEdit,
   allSaved,
   savedPinIds,
   emptyText,
@@ -166,6 +168,7 @@ export default function MasonryGrid({
               currentUserId={currentUserId}
               onDelete={onDelete}
               onUnsave={onUnsave}
+              onEdit={onEdit}
               initialSaved={allSaved ?? savedPinIds?.has(pin.id)}
             />
           </div>

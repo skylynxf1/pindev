@@ -171,13 +171,17 @@ export default async function ProfilePage({ params, searchParams }: Props) {
   const { data: { user: currentUser } } = await supabase.auth.getUser()
   const isOwnProfile = currentUser?.id === profile.id
 
-  const [pins, boards, followStats, createdPinsCount, allBoardsCount] = await Promise.all([
+  const [rawPins, boards, followStats, createdPinsCount, allBoardsCount] = await Promise.all([
     getProfilePins(profile.id),
     getPublicBoards(profile.id),
     getFollowStats(profile.id, currentUser?.id ?? null),
     getCreatedPinsCount(profile.id),
     getAllBoardsCount(profile.id),
   ])
+
+  // Attach profile info to each pin so PinCard can render the author
+  const pinProfile = { username: profile.username, display_name: profile.display_name, avatar_url: profile.avatar_url }
+  const pins = rawPins.map(p => ({ ...p, profile: pinProfile }))
 
   const displayName = profile.display_name || profile.username
   const initial = displayName.charAt(0).toUpperCase()
@@ -273,7 +277,7 @@ export default async function ProfilePage({ params, searchParams }: Props) {
         </div>
 
         {/* ── Tabs ── */}
-        <ProfileTabs pins={pins} boards={boards} isOwnProfile={isOwnProfile} initialTab={tab === 'boards' ? 'boards' : undefined} />
+        <ProfileTabs pins={pins} boards={boards} isOwnProfile={isOwnProfile} initialTab={tab === 'boards' ? 'boards' : undefined} currentUserId={currentUser?.id} />
       </div>
     </main>
   )

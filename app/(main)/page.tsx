@@ -128,7 +128,7 @@ function AuthModal({ onDismiss }: { onDismiss: () => void }) {
    ───────────────────────────────────────────────────────────── */
 export default function HomePage() {
   const router = useRouter()
-  const { pins, loading, hasMore, error, fetchNextPage, removePin } = usePins()
+  const { pins, loading, hasMore, error, fetchNextPage, removePin, updatePin } = usePins()
   const [activeCategory, setActiveCategory] = useState<CategoryId>('all')
   const [authReady, setAuthReady] = useState(false)
   const [isLoggedIn, setIsLoggedIn] = useState(false)
@@ -210,6 +210,7 @@ export default function HomePage() {
           onEmptyClick={handleEmptyClick}
           currentUserId={currentUserId}
           onDelete={removePin}
+          onEdit={updatePin}
           savedPinIds={savedPinIds}
         />
       </div>

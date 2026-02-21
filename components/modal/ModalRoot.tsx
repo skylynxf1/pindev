@@ -1,6 +1,6 @@
 'use client'
 
-import { useEffect, useRef } from 'react'
+import { useEffect, useRef, useState } from 'react'
 import { createPortal } from 'react-dom'
 
 interface ModalRootProps {
@@ -10,9 +10,14 @@ interface ModalRootProps {
 
 export default function ModalRoot({ children, onClose }: ModalRootProps) {
   const overlayRef = useRef<HTMLDivElement>(null)
+  const [mounted, setMounted] = useState(false)
+
+  // Wait until client-side mount so `document` is available for createPortal
+  useEffect(() => { setMounted(true) }, [])
 
   // Lock body scroll while modal is open, restore on unmount
   useEffect(() => {
+    if (!mounted) return
     const previousOverflow = document.body.style.overflow
     const previousPaddingRight = document.body.style.paddingRight
 
@@ -25,7 +30,7 @@ export default function ModalRoot({ children, onClose }: ModalRootProps) {
       document.body.style.overflow = previousOverflow
       document.body.style.paddingRight = previousPaddingRight
     }
-  }, [])
+  }, [mounted])
 
   // Close on Escape key
   useEffect(() => {
@@ -40,6 +45,8 @@ export default function ModalRoot({ children, onClose }: ModalRootProps) {
   function handleBackdropClick(e: React.MouseEvent<HTMLDivElement>) {
     if (e.target === overlayRef.current) onClose()
   }
+
+  if (!mounted) return null
 
   return createPortal(
     <div

@@ -1,8 +1,8 @@
 'use client'
 
 import { useState } from 'react'
-import Image from 'next/image'
 import Link from 'next/link'
+import PinCard from '@/components/feed/PinCard'
 import type { Pin, Board } from '@/types'
 
 /* ─────────────────────────────────────────────────────────────
@@ -17,6 +17,7 @@ interface ProfileTabsProps {
   boards: Board[]
   isOwnProfile: boolean
   initialTab?: 'boards'
+  currentUserId?: string
 }
 
 /* ─────────────────────────────────────────────────────────────
@@ -54,70 +55,17 @@ function EmptyState({ icon, title, sub, ctaHref, ctaLabel }: {
 }
 
 /* ─────────────────────────────────────────────────────────────
-   PIN CARD (shared across grids)
+   PROFILE PIN GRID (uses the same flip-card PinCard as main feed)
    ───────────────────────────────────────────────────────────── */
-function PinCard({ pin, children }: { pin: Pin; children?: React.ReactNode }) {
-  return (
-    <div style={{ marginBottom: 12, breakInside: 'avoid' }}>
-      <div className="pin-lift" style={{
-        position: 'relative', overflow: 'hidden',
-        borderRadius: 16,
-        border: '1.5px solid var(--border)',
-        background: 'var(--bg)',
-        cursor: children ? 'default' : 'pointer',
-        transition: 'border-color 150ms, transform 200ms, box-shadow 200ms',
-      }}>
-        <Image
-          src={pin.thumbnail_url}
-          alt={pin.title || 'Project preview'}
-          width={400}
-          height={300}
-          style={{ width: '100%', height: 'auto', objectFit: 'cover', display: 'block' }}
-          unoptimized
-        />
-        {pin.media_type === 'video' && (
-          <span style={{
-            position: 'absolute', bottom: 8, left: 8,
-            borderRadius: 9999, background: 'rgba(0,0,0,0.6)',
-            padding: '3px 8px', fontSize: '0.625rem', fontWeight: 600,
-            color: '#fff', letterSpacing: '0.05em', textTransform: 'uppercase',
-          }}>
-            Video
-          </span>
-        )}
-        {children}
-      </div>
-      {pin.title && (
-        <p style={{ marginTop: 6, padding: '0 4px', fontSize: '0.8125rem', fontWeight: 600, color: 'var(--text)', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
-          {pin.title}
-        </p>
-      )}
-    </div>
-  )
-}
-
-/* ─────────────────────────────────────────────────────────────
-   MY PINS GRID (own profile — with delete)
-   ───────────────────────────────────────────────────────────── */
-function MyPinsGrid({ initialPins }: { initialPins: Pin[] }) {
+function ProfilePinGrid({ initialPins, currentUserId, isOwnProfile }: { initialPins: Pin[]; currentUserId?: string; isOwnProfile: boolean }) {
   const [pins, setPins] = useState<Pin[]>(initialPins)
-  const [deleting, setDeleting] = useState<string | null>(null)
 
-  async function handleDelete(pinId: string) {
-    if (!window.confirm('Delete this pin? It will be removed from everywhere and cannot be undone.')) return
-    setDeleting(pinId)
-    try {
-      const res = await fetch(`/api/pins/${pinId}`, { method: 'DELETE' })
-      if (res.ok) {
-        setPins(prev => prev.filter(p => p.id !== pinId))
-      } else {
-        alert('Failed to delete pin. Please try again.')
-      }
-    } catch {
-      alert('Failed to delete pin. Please try again.')
-    } finally {
-      setDeleting(null)
-    }
+  function handleDelete(id: string) {
+    setPins(prev => prev.filter(p => p.id !== id))
+  }
+
+  function handleEdit(updated: Pin) {
+    setPins(prev => prev.map(p => p.id === updated.id ? { ...p, ...updated } : p))
   }
 
   if (pins.length === 0) {
@@ -125,9 +73,9 @@ function MyPinsGrid({ initialPins }: { initialPins: Pin[] }) {
       <EmptyState
         icon={<svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="var(--menthe)" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><rect x="3" y="3" width="18" height="18" rx="3"/><circle cx="8.5" cy="8.5" r="1.5"/><polyline points="21 15 16 10 5 21"/></svg>}
         title="No pins yet"
-        sub="Share your first project with the community!"
-        ctaHref="/create"
-        ctaLabel="Create a pin"
+        sub={isOwnProfile ? 'Share your first project with the community!' : 'Projects shared here will appear on this profile.'}
+        ctaHref={isOwnProfile ? '/create' : undefined}
+        ctaLabel={isOwnProfile ? 'Create a pin' : undefined}
       />
     )
   }
@@ -135,61 +83,14 @@ function MyPinsGrid({ initialPins }: { initialPins: Pin[] }) {
   return (
     <div className="columns-2 sm:columns-3 md:columns-4 lg:columns-5" style={{ gap: 12 }}>
       {pins.map(pin => (
-        <PinCard key={pin.id} pin={pin}>
-          <button
-            onClick={() => handleDelete(pin.id)}
-            disabled={deleting === pin.id}
-            className="pin-remove-btn"
-            style={{
-              position: 'absolute', top: 8, right: 8,
-              opacity: 0,
-              display: 'flex', alignItems: 'center', justifyContent: 'center',
-              gap: 4, padding: '5px 10px',
-              borderRadius: 10,
-              border: 'none',
-              background: deleting === pin.id ? '#f87171' : '#ef4444',
-              color: '#fff',
-              fontSize: '0.6875rem', fontWeight: 700,
-              cursor: deleting === pin.id ? 'not-allowed' : 'pointer',
-              transition: 'opacity 150ms, background 150ms',
-              zIndex: 2,
-            }}
-          >
-            {deleting === pin.id ? (
-              <span className="spinner" style={{ width: 10, height: 10, borderColor: 'rgba(255,255,255,.4)', borderTopColor: '#fff' }} />
-            ) : (
-              <svg width="10" height="10" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="3" strokeLinecap="round">
-                <path d="M18 6 6 18M6 6l12 12"/>
-              </svg>
-            )}
-            {deleting === pin.id ? 'Deleting' : 'Remove'}
-          </button>
-        </PinCard>
-      ))}
-    </div>
-  )
-}
-
-/* ─────────────────────────────────────────────────────────────
-   READ-ONLY PIN GRID (other people's profiles)
-   ───────────────────────────────────────────────────────────── */
-function ReadOnlyPinGrid({ pins }: { pins: Pin[] }) {
-  if (pins.length === 0) {
-    return (
-      <EmptyState
-        icon={<svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="var(--menthe)" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><rect x="3" y="3" width="18" height="18" rx="3"/><circle cx="8.5" cy="8.5" r="1.5"/><polyline points="21 15 16 10 5 21"/></svg>}
-        title="No pins yet"
-        sub="Projects shared here will appear on this profile."
-      />
-    )
-  }
-
-  return (
-    <div className="columns-2 sm:columns-3 md:columns-4 lg:columns-5" style={{ gap: 12 }}>
-      {pins.map(pin => (
-        <Link key={pin.id} href={`/pin/${pin.id}`} scroll={false} style={{ textDecoration: 'none', color: 'inherit' }}>
-          <PinCard pin={pin} />
-        </Link>
+        <div key={pin.id} style={{ marginBottom: 16, breakInside: 'avoid', pageBreakInside: 'avoid' }}>
+          <PinCard
+            pin={pin}
+            currentUserId={currentUserId}
+            onDelete={handleDelete}
+            onEdit={handleEdit}
+          />
+        </div>
       ))}
     </div>
   )
@@ -418,7 +319,7 @@ function BoardGrid({ boards, onBoardAdded, isOwnProfile }: { boards: Board[]; on
 /* ─────────────────────────────────────────────────────────────
    PROFILE TABS
    ───────────────────────────────────────────────────────────── */
-export default function ProfileTabs({ pins, boards, isOwnProfile, initialTab }: ProfileTabsProps) {
+export default function ProfileTabs({ pins, boards, isOwnProfile, initialTab, currentUserId }: ProfileTabsProps) {
   const defaultTab: Tab = initialTab ?? (isOwnProfile ? 'my-pins' : 'pins')
   const [activeTab, setActiveTab] = useState<Tab>(defaultTab)
   const [boardList, setBoardList] = useState<Board[]>(boards)
@@ -488,15 +389,10 @@ export default function ProfileTabs({ pins, boards, isOwnProfile, initialTab }: 
       </div>
 
       {/* Tab content */}
-      {activeTab === 'my-pins' && <MyPinsGrid initialPins={pins} />}
-      {activeTab === 'pins'    && <ReadOnlyPinGrid pins={pins} />}
+      {(activeTab === 'my-pins' || activeTab === 'pins') && (
+        <ProfilePinGrid initialPins={pins} currentUserId={currentUserId} isOwnProfile={isOwnProfile} />
+      )}
       {activeTab === 'boards'  && <BoardGrid boards={boardList} onBoardAdded={b => setBoardList(prev => [...prev, b])} isOwnProfile={isOwnProfile} />}
-
-      {/* Hover reveal for remove button */}
-      <style>{`
-        .pin-remove-btn { opacity: 0 !important; }
-        .pin-lift:hover .pin-remove-btn { opacity: 1 !important; }
-      `}</style>
     </div>
   )
 }

@@ -2,6 +2,7 @@
 
 import { useState, useEffect, useCallback, useRef } from 'react'
 import { useRouter } from 'next/navigation'
+import Link from 'next/link'
 import MasonryGrid from '@/components/feed/MasonryGrid'
 import { createClient } from '@/lib/supabase/client'
 import type { Pin } from '@/types'
@@ -14,12 +15,24 @@ export default function SavedPage() {
   const [loading, setLoading] = useState(true)
   const [error, setError] = useState<string | null>(null)
   const [currentUserId, setCurrentUserId] = useState<string | undefined>(undefined)
+  const [username, setUsername] = useState<string | null>(null)
   const fetchedRef = useRef(false)
 
   useEffect(() => {
     const supabase = createClient()
     supabase.auth.getUser().then(({ data }) => {
-      setCurrentUserId(data.user?.id)
+      const uid = data.user?.id
+      setCurrentUserId(uid)
+      if (uid) {
+        supabase
+          .from('profiles')
+          .select('username')
+          .eq('id', uid)
+          .single()
+          .then(({ data: profile }) => {
+            if (profile) setUsername(profile.username)
+          })
+      }
     })
   }, [])
 
@@ -48,6 +61,25 @@ export default function SavedPage() {
   return (
     <main style={{ minHeight: '100vh', background: 'var(--bg)' }}>
       <div style={{ maxWidth: 1800, margin: '0 auto', padding: '48px 24px 80px' }}>
+
+        {/* Back to boards */}
+        {username && (
+          <Link
+            href={`/profile/${username}?tab=boards`}
+            style={{
+              display: 'inline-flex', alignItems: 'center', gap: 6,
+              fontSize: '0.875rem', color: 'var(--muted)', textDecoration: 'none',
+              marginBottom: 28, transition: 'color 150ms',
+            }}
+            onMouseEnter={e => { (e.currentTarget as HTMLElement).style.color = 'var(--menthe)' }}
+            onMouseLeave={e => { (e.currentTarget as HTMLElement).style.color = 'var(--muted)' }}
+          >
+            <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round">
+              <path d="m15 18-6-6 6-6"/>
+            </svg>
+            Back to boards
+          </Link>
+        )}
 
         {/* Page header */}
         <div style={{ textAlign: 'center', marginBottom: 40 }}>

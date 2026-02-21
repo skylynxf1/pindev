@@ -94,5 +94,9 @@ export function usePins(options?: { initialPins?: Pin[] }) {
     setPins(prev => prev.filter(p => p.id !== id))
   }
 
-  return { pins, loading, hasMore, error, fetchNextPage: fetchPage, removePin }
+  function updatePin(updated: Pin) {
+    setPins(prev => prev.map(p => p.id === updated.id ? { ...p, ...updated } : p))
+  }
+
+  return { pins, loading, hasMore, error, fetchNextPage: fetchPage, removePin, updatePin }
 }
