@@ -4,19 +4,45 @@ import { createAdminClient } from "@/lib/supabase/admin";
 function requireAgentSecret(req: Request) {
   const header = req.headers.get("authorization") || "";
   const token = header.startsWith("Bearer ") ? header.slice(7) : "";
-  const secret = process.env.PIN_AGENT_SECRET ?? "";
-  return token === secret;
+  return token === (process.env.PIN_AGENT_SECRET ?? "");
 }
 
-function toTitleCase(str: string) {
-  return str
-    .replace(/-/g, " ")
-    .replace(/\b\w/g, (c) => c.toUpperCase());
+// ── HN Algolia search ────────────────────────────────────────────────────────
+
+interface HNHit {
+  objectID: string;
+  title: string;
+  url?: string;
+  points: number;
 }
 
-/** Try to fetch the og:image from a live URL. Returns null on any failure. */
+async function searchShowHN(query: string, minPoints = 15): Promise<HNHit[]> {
+  const params = new URLSearchParams({
+    tags: "show_hn",
+    query,
+    hitsPerPage: "15",
+    numericFilters: `points>${minPoints}`,
+  });
+  try {
+    const res = await fetch(`https://hn.algolia.com/api/v1/search?${params}`);
+    if (!res.ok) return [];
+    const data = await res.json();
+    return data.hits ?? [];
+  } catch {
+    return [];
+  }
+}
+
+function cleanTitle(raw: string): string {
+  return raw
+    .replace(/^Show HN:\s*/i, "")
+    .replace(/^Ask HN:\s*/i, "")
+    .trim();
+}
+
+// ── og:image fetcher ─────────────────────────────────────────────────────────
+
 async function fetchOgImage(url: string): Promise<string | null> {
-  // Use AbortController + setTimeout — universally supported across all Node versions
   const controller = new AbortController();
   const timer = setTimeout(() => controller.abort(), 5000);
   try {
@@ -27,17 +53,15 @@ async function fetchOgImage(url: string): Promise<string | null> {
     clearTimeout(timer);
     if (!res.ok) { res.body?.cancel(); return null; }
 
-    // Stream only the first 50 KB so we don't download entire pages
     const reader = res.body?.getReader();
     if (!reader) return null;
     const decoder = new TextDecoder();
     let html = "";
-    const MAX = 50 * 1024;
-    while (html.length < MAX) {
+    while (html.length < 60 * 1024) {
       const { done, value } = await reader.read();
       if (done || !value) break;
       html += decoder.decode(value, { stream: !done });
-      if (html.includes("og:image")) break; // early exit once we have what we need
+      if (html.includes("og:image")) break;
     }
     reader.cancel().catch(() => {});
 
@@ -54,35 +78,27 @@ async function fetchOgImage(url: string): Promise<string | null> {
   }
 }
 
-function daysAgo(n: number): string {
-  const d = new Date();
-  d.setDate(d.getDate() - n);
-  return d.toISOString().split("T")[0];
-}
+// ── Search queries ────────────────────────────────────────────────────────────
+// Each entry: the HN search term + tags to attach to drafted pins
 
-interface GithubRepo {
-  name: string;
-  full_name: string;
-  html_url: string;
-  homepage: string | null;
-  description: string | null;
-  topics: string[];
-  language: string | null;
-}
+const QUERIES: Array<{ q: string; tags: string[] }> = [
+  { q: "vibecoding",                        tags: ["vibecoding"] },
+  { q: "vibe coding app",                   tags: ["vibecoding", "app"] },
+  { q: "mini game browser playable",        tags: ["app"] },
+  { q: "interactive playground simulator",  tags: ["website", "app"] },
+  { q: "css animation creative art",        tags: ["website"] },
+  { q: "webgl three.js canvas experiment",  tags: ["website"] },
+  { q: "indie game weekend",               tags: ["app"] },
+  { q: "ai tool built weekend",            tags: ["ai-tool", "app"] },
+  { q: "cursor claude vibe",              tags: ["vibecoding", "ai-tool"] },
+];
 
-async function searchGithub(query: string, headers: Record<string, string>): Promise<GithubRepo[]> {
-  const url = `https://api.github.com/search/repositories?q=${encodeURIComponent(query)}&sort=stars&order=desc&per_page=20`;
-  const res = await fetch(url, { headers });
-  if (!res.ok) return [];
-  const data = await res.json();
-  return data.items ?? [];
-}
+// ── Route ────────────────────────────────────────────────────────────────────
 
 export async function POST(req: Request) {
   if (!requireAgentSecret(req)) {
     return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
   }
-
   try {
     return await ingest();
   } catch (err) {
@@ -96,106 +112,70 @@ export async function POST(req: Request) {
 
 async function ingest() {
   const supabase = createAdminClient();
-  const since = daysAgo(90); // broader window for design content
 
-  const ghHeaders: Record<string, string> = {
-    Accept: "application/vnd.github+json",
-    "X-GitHub-Api-Version": "2022-11-28",
-  };
-  if (process.env.GITHUB_TOKEN) {
-    ghHeaders["Authorization"] = `Bearer ${process.env.GITHUB_TOKEN}`;
-  }
+  // Run all HN searches in parallel
+  const searchResults = await Promise.all(QUERIES.map(({ q }) => searchShowHN(q)));
 
-  // 3 parallel searches targeting different UI/design categories
-  const [uiRepos, animRepos, dsRepos] = await Promise.all([
-    searchGithub(`topic:ui-components stars:>200 pushed:>${since}`, ghHeaders),
-    searchGithub(`topic:css-animation stars:>100 pushed:>${since}`, ghHeaders),
-    searchGithub(`topic:design-system stars:>200 pushed:>${since}`, ghHeaders),
-  ]);
-
-  // Merge and deduplicate within the batch by html_url
+  // Merge and deduplicate by URL; keep tags from the first matching query
   const seen = new Set<string>();
-  const allRepos: GithubRepo[] = [];
-  for (const repo of [...uiRepos, ...animRepos, ...dsRepos]) {
-    if (!seen.has(repo.html_url)) {
-      seen.add(repo.html_url);
-      allRepos.push(repo);
+  const items: Array<{ hit: HNHit; tags: string[] }> = [];
+  for (let i = 0; i < QUERIES.length; i++) {
+    for (const hit of searchResults[i]) {
+      if (!hit.url || seen.has(hit.url)) continue;
+      seen.add(hit.url);
+      items.push({ hit, tags: QUERIES[i].tags });
     }
   }
 
-  // Pre-filter repos: must have a live homepage and valid title
-  const eligible = allRepos.filter(repo => {
-    const liveUrl = repo.homepage?.trim();
-    const title = toTitleCase(repo.name);
-    return !!liveUrl && title.length >= 6;
-  });
+  // Only keep items with a reasonable title
+  const eligible = items.filter(({ hit }) => cleanTitle(hit.title).length >= 6);
 
-  // Fetch og:image for all eligible repos in parallel (with fallback to GitHub OG)
-  const ogImages = await Promise.all(
-    eligible.map(repo =>
-      fetchOgImage(repo.homepage!.trim()).then(
-        img => img ?? `https://opengraph.githubassets.com/1/${repo.full_name}`
-      )
-    )
-  );
+  // Fetch og:images in parallel
+  const ogImages = await Promise.all(eligible.map(({ hit }) => fetchOgImage(hit.url!)));
 
   let created = 0;
   let skipped = 0;
   const createdTitles: string[] = [];
 
   for (let i = 0; i < eligible.length; i++) {
-    const repo = eligible[i];
-    const title = toTitleCase(repo.name);
-    const sourceUrl = repo.html_url;
-    const liveUrl = repo.homepage!.trim();
+    const { hit, tags } = eligible[i];
     const imageUrl = ogImages[i];
+    const title = cleanTitle(hit.title);
+    const liveUrl = hit.url!;
 
-    // Deduplication: check if source_url already exists
+    // Pins are visual — skip if we couldn't get an og:image
+    if (!imageUrl) { skipped++; continue; }
+
+    // Deduplication against existing drafts
     const { data: existing } = await supabase
       .from("pin_drafts")
       .select("id")
-      .eq("source_url", sourceUrl)
+      .eq("source_url", liveUrl)
       .limit(1)
       .maybeSingle();
 
-    if (existing) {
-      skipped++;
-      continue;
-    }
+    if (existing) { skipped++; continue; }
 
-    // Build tags: topics (max 8) + language
-    const tags: string[] = [
-      ...(repo.topics ?? []).slice(0, 8),
-      ...(repo.language ? [repo.language.toLowerCase()] : []),
-    ];
-    const uniqueTags = Array.from(new Set(tags)).slice(0, 9);
-
-    const draft = {
+    const { error } = await supabase.from("pin_drafts").insert({
       title,
-      description: repo.description
-        ? repo.description.trim().slice(0, 300)
-        : null,
+      description: null,
       live_url: liveUrl,
-      repo_url: repo.html_url,
-      source_url: sourceUrl,
+      repo_url: null,
+      source_url: liveUrl,
       image_url: imageUrl,
       video_url: null,
-      tags: uniqueTags,
+      tags: Array.from(new Set(tags)),
       status: "PENDING",
-    };
+    });
 
-    const { error } = await supabase.from("pin_drafts").insert(draft);
     if (error) {
-      console.error("[ingest-ui] insert error for", repo.full_name, error.message);
+      console.error("[ingest-ui] insert error:", error.message);
       skipped++;
     } else {
       created++;
       createdTitles.push(title);
     }
   }
-
-  // Count repos skipped due to missing homepage/short title
-  skipped += allRepos.length - eligible.length;
 
   return NextResponse.json({ created, skipped, repos: createdTitles });
 }
