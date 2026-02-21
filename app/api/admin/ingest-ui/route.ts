@@ -40,6 +40,16 @@ function cleanTitle(raw: string): string {
     .trim();
 }
 
+const REPO_HOSTS = /^(www\.)?(github|gitlab|bitbucket|sourcehut|codeberg)\.(com|io|org)/;
+
+function isRepoUrl(url: string): boolean {
+  try {
+    return REPO_HOSTS.test(new URL(url).hostname);
+  } catch {
+    return false;
+  }
+}
+
 // ── og:image fetcher ─────────────────────────────────────────────────────────
 
 async function fetchOgImage(url: string): Promise<string | null> {
@@ -127,8 +137,10 @@ async function ingest() {
     }
   }
 
-  // Only keep items with a reasonable title
-  const eligible = items.filter(({ hit }) => cleanTitle(hit.title).length >= 6);
+  // Only keep items with a reasonable title and a non-repo live URL
+  const eligible = items.filter(({ hit }) =>
+    cleanTitle(hit.title).length >= 6 && !isRepoUrl(hit.url!)
+  );
 
   // Fetch og:images in parallel
   const ogImages = await Promise.all(eligible.map(({ hit }) => fetchOgImage(hit.url!)));
