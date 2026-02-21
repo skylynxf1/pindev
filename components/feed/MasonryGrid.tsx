@@ -1,6 +1,6 @@
 'use client'
 
-import { useEffect, useRef, useState } from 'react'
+import { useEffect, useRef, useState, useCallback } from 'react'
 import PinCard from './PinCard'
 import type { Pin } from '@/types'
 
@@ -13,6 +13,9 @@ interface MasonryGridProps {
   onEmptyClick?: () => void
   currentUserId?: string
   onDelete?: (id: string) => void
+  onUnsave?: (id: string) => void
+  allSaved?: boolean
+  savedPinIds?: Set<string>
   emptyText?: string
   emptySubtext?: string
 }
@@ -80,11 +83,23 @@ export default function MasonryGrid({
   onEmptyClick,
   currentUserId,
   onDelete,
+  onUnsave,
+  allSaved,
+  savedPinIds,
   emptyText,
   emptySubtext,
 }: MasonryGridProps) {
   const sentinelRef = useRef<HTMLDivElement>(null)
   const [cols, setCols] = useState(4)
+
+  // Keep refs in sync so the observer callback always reads the latest values
+  // without needing to be torn down and re-created on every state change.
+  const hasMoreRef = useRef(hasMore)
+  const loadingRef = useRef(loading)
+  const onLoadMoreRef = useRef(onLoadMore)
+  useEffect(() => { hasMoreRef.current = hasMore }, [hasMore])
+  useEffect(() => { loadingRef.current = loading }, [loading])
+  useEffect(() => { onLoadMoreRef.current = onLoadMore }, [onLoadMore])
 
   // JS-driven column count — avoids Tailwind v4 responsive class issues
   useEffect(() => {
@@ -101,19 +116,29 @@ export default function MasonryGrid({
     return () => window.removeEventListener('resize', update)
   }, [])
 
-  // IntersectionObserver drives infinite scroll
+  // Stable IntersectionObserver — only mounts/unmounts with the component.
+  // Reads hasMore/loading/onLoadMore via refs so it never needs to reconnect,
+  // eliminating the "stuck scroll" caused by observer gaps during re-attachment.
+  const tryLoad = useCallback(() => {
+    if (hasMoreRef.current && !loadingRef.current) onLoadMoreRef.current()
+  }, [])
+
   useEffect(() => {
     const sentinel = sentinelRef.current
     if (!sentinel) return
     const observer = new IntersectionObserver(
-      (entries) => {
-        if (entries[0].isIntersecting && hasMore && !loading) onLoadMore()
-      },
-      { rootMargin: '400px' }
+      (entries) => { if (entries[0].isIntersecting) tryLoad() },
+      { rootMargin: '600px' }
     )
     observer.observe(sentinel)
     return () => observer.disconnect()
-  }, [hasMore, loading, onLoadMore])
+  }, [tryLoad])
+
+  // Re-check sentinel whenever loading finishes — covers the case where the
+  // sentinel was already in view while loading, so no new intersection fires.
+  useEffect(() => {
+    if (!loading) tryLoad()
+  }, [loading, tryLoad])
 
   const gridStyle: React.CSSProperties = { columns: cols, columnGap: 16 }
   const itemStyle: React.CSSProperties = { marginBottom: 16, breakInside: 'avoid', pageBreakInside: 'avoid' }
@@ -135,7 +160,14 @@ export default function MasonryGrid({
       <div style={gridStyle}>
         {pins.map((pin) => (
           <div key={pin.id} style={itemStyle}>
-            <PinCard pin={pin} onSave={onSave} currentUserId={currentUserId} onDelete={onDelete} />
+            <PinCard
+              pin={pin}
+              onSave={onSave}
+              currentUserId={currentUserId}
+              onDelete={onDelete}
+              onUnsave={onUnsave}
+              initialSaved={allSaved ?? savedPinIds?.has(pin.id)}
+            />
           </div>
         ))}
 
@@ -149,10 +181,10 @@ export default function MasonryGrid({
       {/* Sentinel for IntersectionObserver */}
       <div ref={sentinelRef} style={{ height: 1 }} />
 
-      {/* Loading skeletons */}
+      {/* Loading skeletons — enough to cover 2-3 screens so scroll never hits an abrupt stop */}
       {loading && (
         <div style={{ ...gridStyle, marginTop: 16 }}>
-          {Array.from({ length: 10 }).map((_, i) => (
+          {Array.from({ length: cols * 7 }).map((_, i) => (
             <div
               key={i}
               style={{

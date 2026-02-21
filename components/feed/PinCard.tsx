@@ -1,8 +1,8 @@
 'use client'
 
-import { useState } from 'react'
+import { useState, useEffect } from 'react'
 import Image from 'next/image'
-import BoardPickerModal from '@/components/boards/BoardPickerModal'
+import Link from 'next/link'
 import type { Pin, Tag } from '@/types'
 
 /* ─────────────────────────────────────────────────────────────
@@ -85,26 +85,73 @@ interface PinCardProps {
   onSave?: (pin: Pin) => void
   currentUserId?: string
   onDelete?: (id: string) => void
+  onUnsave?: (id: string) => void
+  initialSaved?: boolean
 }
 
-export default function PinCard({ pin, onSave, currentUserId, onDelete }: PinCardProps) {
+export default function PinCard({ pin, onSave, currentUserId, onDelete, onUnsave, initialSaved }: PinCardProps) {
   const [flipped, setFlipped] = useState(false)
   const [hovered, setHovered] = useState(false)
   const [confirmDelete, setConfirmDelete] = useState(false)
   const [deleting, setDeleting] = useState(false)
-  const [saved, setSaved] = useState(false)
-  const [showPicker, setShowPicker] = useState(false)
+  const [saved, setSaved] = useState(initialSaved ?? false)
+  const [saving, setSaving] = useState(false)
+  const [unsaving, setUnsaving] = useState(false)
   const category = getCategoryFromTags(pin.tags)
   const isOwner = !!currentUserId && currentUserId === pin.owner_id
 
-  function handleSave(e: React.MouseEvent) {
+  // Sync saved state when initialSaved loads asynchronously
+  useEffect(() => {
+    setSaved(initialSaved ?? false)
+  }, [initialSaved])
+
+  async function handleSaveClick(e: React.MouseEvent) {
     e.stopPropagation()
     if (!currentUserId) {
       onSave?.(pin)
       return
     }
-    if (saved) return
-    setShowPicker(true)
+    if (saved) {
+      doUnsave()
+      return
+    }
+    doSave()
+  }
+
+  async function doSave() {
+    setSaving(true)
+    try {
+      const res = await fetch('/api/saved-pins', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ pin_id: pin.id }),
+      })
+      if (res.ok) setSaved(true)
+    } finally {
+      setSaving(false)
+    }
+  }
+
+  async function doUnsave() {
+    setUnsaving(true)
+    try {
+      const res = await fetch('/api/saved-pins', {
+        method: 'DELETE',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ pin_id: pin.id }),
+      })
+      if (res.ok) {
+        setSaved(false)
+        onUnsave?.(pin.id)
+      }
+    } finally {
+      setUnsaving(false)
+    }
+  }
+
+  async function handleRemove(e: React.MouseEvent) {
+    e.stopPropagation()
+    await doUnsave()
   }
 
   async function handleDelete(e: React.MouseEvent) {
@@ -186,30 +233,56 @@ export default function PinCard({ pin, onSave, currentUserId, onDelete }: PinCar
                 transition: 'opacity 200ms',
               }}
             >
-              {/* Save button */}
+              {/* Save / unsave button */}
               <button
                 type="button"
-                onClick={handleSave}
-                disabled={saved}
+                onClick={handleSaveClick}
+                disabled={saving || unsaving}
                 style={{
                   display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 4,
                   borderRadius: 14, padding: '5px 12px',
                   fontSize: '0.75rem', fontWeight: 700, color: '#fff',
                   border: 'none',
                   background: saved ? 'var(--menthe)' : 'var(--verveine)',
-                  cursor: saved ? 'default' : 'pointer',
+                  cursor: (saving || unsaving) ? 'not-allowed' : 'pointer',
                   transition: 'background 200ms',
                 }}
                 onMouseEnter={e => { if (!saved) (e.currentTarget as HTMLElement).style.background = 'var(--menthe)' }}
                 onMouseLeave={e => { if (!saved) (e.currentTarget as HTMLElement).style.background = 'var(--verveine)' }}
               >
-                {saved ? (
+                {(saving || unsaving) ? (
+                  <span style={{ width: 10, height: 10, borderRadius: '50%', border: '2px solid rgba(255,255,255,0.4)', borderTopColor: '#fff', animation: 'spin .7s linear infinite', display: 'inline-block' }} />
+                ) : saved ? (
                   <>
                     <svg width="10" height="10" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="3" strokeLinecap="round" strokeLinejoin="round"><polyline points="20 6 9 17 4 12"/></svg>
                     Saved
                   </>
                 ) : 'Save'}
               </button>
+
+              {/* Remove from saved — visible on saved page */}
+              {onUnsave && (
+                <button
+                  type="button"
+                  onClick={handleRemove}
+                  disabled={unsaving}
+                  title="Remove from saved"
+                  style={{
+                    display: 'flex', alignItems: 'center', justifyContent: 'center',
+                    borderRadius: 14, padding: '5px 8px',
+                    border: 'none', color: '#fff',
+                    background: 'rgba(239,68,68,0.80)',
+                    cursor: unsaving ? 'not-allowed' : 'pointer',
+                    transition: 'background 150ms',
+                  }}
+                  onMouseEnter={e => { (e.currentTarget as HTMLElement).style.background = '#ef4444' }}
+                  onMouseLeave={e => { (e.currentTarget as HTMLElement).style.background = 'rgba(239,68,68,0.80)' }}
+                >
+                  <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round">
+                    <path d="M18 6 6 18M6 6l12 12"/>
+                  </svg>
+                </button>
+              )}
 
               {/* Delete button — owner only */}
               {isOwner && (
@@ -291,7 +364,11 @@ export default function PinCard({ pin, onSave, currentUserId, onDelete }: PinCar
 
             <div style={{ marginTop: 8, display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 8 }}>
               {pin.profile && (
-                <div style={{ display: 'flex', alignItems: 'center', gap: 6, minWidth: 0 }}>
+                <Link
+                  href={`/profile/${pin.profile.username}`}
+                  onClick={e => e.stopPropagation()}
+                  style={{ display: 'flex', alignItems: 'center', gap: 6, minWidth: 0, textDecoration: 'none' }}
+                >
                   <div
                     style={{
                       height: 20, width: 20, borderRadius: '50%',
@@ -315,11 +392,13 @@ export default function PinCard({ pin, onSave, currentUserId, onDelete }: PinCar
                   </div>
                   <span
                     className="truncate"
-                    style={{ fontSize: '0.75rem', color: 'var(--muted)' }}
+                    style={{ fontSize: '0.75rem', color: 'var(--muted)', transition: 'color 120ms' }}
+                    onMouseEnter={e => { (e.currentTarget as HTMLElement).style.color = 'var(--menthe)' }}
+                    onMouseLeave={e => { (e.currentTarget as HTMLElement).style.color = 'var(--muted)' }}
                   >
                     {pin.profile.display_name || pin.profile.username}
                   </span>
-                </div>
+                </Link>
               )}
 
               <a
@@ -497,7 +576,11 @@ export default function PinCard({ pin, onSave, currentUserId, onDelete }: PinCar
 
           {/* Author */}
           {pin.profile && (
-            <div style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
+            <Link
+              href={`/profile/${pin.profile.username}`}
+              onClick={e => e.stopPropagation()}
+              style={{ display: 'flex', alignItems: 'center', gap: 6, textDecoration: 'none' }}
+            >
               <div
                 style={{
                   height: 18, width: 18, borderRadius: '50%',
@@ -519,22 +602,16 @@ export default function PinCard({ pin, onSave, currentUserId, onDelete }: PinCar
                   (pin.profile.display_name || pin.profile.username).charAt(0).toUpperCase()
                 )}
               </div>
-              <span style={{ fontSize: '0.75rem', color: 'var(--muted)' }}>
+              <span style={{ fontSize: '0.75rem', color: 'var(--muted)', transition: 'color 120ms' }}
+                onMouseEnter={e => { (e.currentTarget as HTMLElement).style.color = 'var(--menthe)' }}
+                onMouseLeave={e => { (e.currentTarget as HTMLElement).style.color = 'var(--muted)' }}
+              >
                 {pin.profile.display_name || pin.profile.username}
               </span>
-            </div>
+            </Link>
           )}
         </div>
       </div>
-
-      {/* Board picker modal */}
-      {showPicker && (
-        <BoardPickerModal
-          pin={pin}
-          onClose={() => setShowPicker(false)}
-          onSaved={() => setSaved(true)}
-        />
-      )}
 
       <style>{`@keyframes spin { to { transform: rotate(360deg) } }`}</style>
     </div>

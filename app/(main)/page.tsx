@@ -134,6 +134,7 @@ export default function HomePage() {
   const [isLoggedIn, setIsLoggedIn] = useState(false)
   const [currentUserId, setCurrentUserId] = useState<string | undefined>(undefined)
   const [authModalDismissed, setAuthModalDismissed] = useState(true)
+  const [savedPinIds, setSavedPinIds] = useState<Set<string>>(new Set())
 
   const handleEmptyClick = useCallback(() => {
     if (isLoggedIn) {
@@ -146,9 +147,16 @@ export default function HomePage() {
   useEffect(() => {
     const supabase = createClient()
     supabase.auth.getUser().then(({ data }) => {
-      setIsLoggedIn(!!data.user)
-      setCurrentUserId(data.user?.id)
+      const userId = data.user?.id
+      setIsLoggedIn(!!userId)
+      setCurrentUserId(userId)
       setAuthReady(true)
+      if (userId) {
+        fetch('/api/saved-pins?ids_only=true')
+          .then(r => r.json())
+          .then(d => setSavedPinIds(new Set(d.ids ?? [])))
+          .catch(() => {})
+      }
     })
   }, [])
 
@@ -202,6 +210,7 @@ export default function HomePage() {
           onEmptyClick={handleEmptyClick}
           currentUserId={currentUserId}
           onDelete={removePin}
+          savedPinIds={savedPinIds}
         />
       </div>
 

@@ -54,13 +54,56 @@ export async function POST(request: NextRequest) {
   return NextResponse.json({ success: true }, { status: 201 })
 }
 
-export async function GET() {
+// ── DELETE /api/saved-pins  — remove a pin from the user's default "Saved" board ─
+export async function DELETE(request: NextRequest) {
+  const supabase = await createClient()
+
+  const { data: { user }, error: authError } = await supabase.auth.getUser()
+  if (authError || !user) return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
+
+  let body: unknown
+  try { body = await request.json() } catch { return NextResponse.json({ error: 'Invalid JSON' }, { status: 400 }) }
+
+  const parsed = z.object({ pin_id: z.string().uuid() }).safeParse(body)
+  if (!parsed.success) return NextResponse.json({ error: 'Invalid pin_id' }, { status: 400 })
+
+  const { pin_id } = parsed.data
+
+  // Find the user's Saved board
+  const { data: savedBoard } = await supabase
+    .from('boards')
+    .select('id')
+    .eq('owner_id', user.id)
+    .eq('name', 'Saved')
+    .maybeSingle()
+
+  if (!savedBoard) {
+    return NextResponse.json({ error: 'No saved board found' }, { status: 404 })
+  }
+
+  const { error: deleteError } = await supabase
+    .from('board_pins')
+    .delete()
+    .eq('board_id', savedBoard.id)
+    .eq('pin_id', pin_id)
+
+  if (deleteError) {
+    console.error('[api/saved-pins] delete error:', deleteError)
+    return NextResponse.json({ error: 'Failed to unsave pin' }, { status: 500 })
+  }
+
+  return NextResponse.json({ success: true })
+}
+
+export async function GET(request: NextRequest) {
   const supabase = await createClient()
 
   const { data: { user }, error: authError } = await supabase.auth.getUser()
   if (authError || !user) {
     return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
   }
+
+  const idsOnly = new URL(request.url).searchParams.get('ids_only') === 'true'
 
   // Get all board IDs owned by this user
   const { data: boards } = await supabase
@@ -69,10 +112,20 @@ export async function GET() {
     .eq('owner_id', user.id)
 
   if (!boards || boards.length === 0) {
-    return NextResponse.json({ pins: [] })
+    return NextResponse.json(idsOnly ? { ids: [] } : { pins: [] })
   }
 
   const boardIds = boards.map((b) => b.id)
+
+  // Lightweight path — just return pin IDs
+  if (idsOnly) {
+    const { data: boardPins } = await supabase
+      .from('board_pins')
+      .select('pin_id')
+      .in('board_id', boardIds)
+    const ids = [...new Set((boardPins ?? []).map((bp) => bp.pin_id))]
+    return NextResponse.json({ ids })
+  }
 
   // Get board_pins with full pin details
   const { data: boardPins, error } = await supabase

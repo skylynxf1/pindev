@@ -66,6 +66,25 @@ async function getProfilePins(ownerId: string): Promise<Pin[]> {
   })) as Pin[]
 }
 
+async function getCreatedPinsCount(ownerId: string): Promise<number> {
+  const supabase = await createClient()
+  const { count } = await supabase
+    .from('pins')
+    .select('*', { count: 'exact', head: true })
+    .eq('owner_id', ownerId)
+    .eq('is_published', true)
+  return count ?? 0
+}
+
+async function getAllBoardsCount(ownerId: string): Promise<number> {
+  const supabase = await createClient()
+  const { count } = await supabase
+    .from('boards')
+    .select('*', { count: 'exact', head: true })
+    .eq('owner_id', ownerId)
+  return count ?? 0
+}
+
 async function getPublicBoards(ownerId: string): Promise<Board[]> {
   const supabase = await createClient()
 
@@ -152,10 +171,12 @@ export default async function ProfilePage({ params, searchParams }: Props) {
   const { data: { user: currentUser } } = await supabase.auth.getUser()
   const isOwnProfile = currentUser?.id === profile.id
 
-  const [pins, boards, followStats] = await Promise.all([
+  const [pins, boards, followStats, createdPinsCount, allBoardsCount] = await Promise.all([
     getProfilePins(profile.id),
     getPublicBoards(profile.id),
     getFollowStats(profile.id, currentUser?.id ?? null),
+    getCreatedPinsCount(profile.id),
+    getAllBoardsCount(profile.id),
   ])
 
   const displayName = profile.display_name || profile.username
@@ -239,8 +260,8 @@ export default async function ProfilePage({ params, searchParams }: Props) {
               {/* Stats + actions row */}
               <ProfileHeaderActions
                 profile={profile}
-                pinCount={pins.length}
-                boardCount={boards.length}
+                pinCount={createdPinsCount}
+                boardCount={allBoardsCount}
                 followerCount={followStats.follower_count}
                 followingCount={followStats.following_count}
                 isOwnProfile={isOwnProfile}

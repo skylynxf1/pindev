@@ -99,6 +99,8 @@ export default function SavedPage() {
             onEmptyClick={() => router.push('/')}
             currentUserId={currentUserId}
             onDelete={removePin}
+            onUnsave={removePin}
+            allSaved
             emptyText="save some genius ideas..."
             emptySubtext="browse the feed →"
           />
