@@ -181,10 +181,17 @@ export async function PATCH(
   // Replace tags: delete existing, re-insert new
   await supabase.from('pin_tags').delete().eq('pin_id', id)
   if (tags.length > 0) {
+    // Insert any new tags (ignore if they already exist — no UPDATE policy on tags)
+    await supabase
+      .from('tags')
+      .upsert(tags.map(name => ({ name })), { onConflict: 'name', ignoreDuplicates: true })
+
+    // Fetch all tag rows by name (works even for pre-existing tags)
     const { data: tagRows } = await supabase
       .from('tags')
-      .upsert(tags.map(name => ({ name })), { onConflict: 'name', ignoreDuplicates: false })
       .select('id, name')
+      .in('name', tags)
+
     if (tagRows && tagRows.length > 0) {
       await supabase.from('pin_tags').upsert(
         tagRows.map(tag => ({ pin_id: id, tag_id: tag.id })),

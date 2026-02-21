@@ -26,13 +26,18 @@ const CATEGORY_TAG_MAP: Record<string, { label: string; id: string }> = {
   vibe:          { label: 'VIBECODING', id: 'vibecoding' },
 }
 
-function getCategoryFromTags(tags?: Tag[]) {
-  if (!tags?.length) return null
+function getCategoriesFromTags(tags?: Tag[]) {
+  if (!tags?.length) return []
+  const seen = new Set<string>()
+  const result: { label: string; id: string }[] = []
   for (const tag of tags) {
     const match = CATEGORY_TAG_MAP[tag.name.toLowerCase()]
-    if (match) return match
+    if (match && !seen.has(match.id)) {
+      seen.add(match.id)
+      result.push(match)
+    }
   }
-  return null
+  return result
 }
 
 /* ─────────────────────────────────────────────────────────────
@@ -125,7 +130,7 @@ export default function PinCard({ pin: initialPin, onSave, currentUserId, onDele
   const [saving, setSaving] = useState(false)
   const [unsaving, setUnsaving] = useState(false)
   const [showEditModal, setShowEditModal] = useState(false)
-  const category = getCategoryFromTags(pin.tags)
+  const categories = getCategoriesFromTags(pin.tags)
   const isOwner = !!currentUserId && currentUserId === pin.owner_id
 
   // Keep pin in sync when parent updates
@@ -371,9 +376,11 @@ export default function PinCard({ pin: initialPin, onSave, currentUserId, onDele
 
           {/* Card body */}
           <div style={{ padding: '10px 12px 12px' }}>
-            {category && (
-              <div style={{ marginBottom: 6 }}>
-                <CategoryBadge id={category.id} label={category.label} />
+            {categories.length > 0 && (
+              <div style={{ marginBottom: 6, display: 'flex', flexWrap: 'wrap', gap: 6 }}>
+                {categories.map(cat => (
+                  <CategoryBadge key={cat.id} id={cat.id} label={cat.label} />
+                ))}
               </div>
             )}
 
@@ -499,8 +506,14 @@ export default function PinCard({ pin: initialPin, onSave, currentUserId, onDele
             tap to flip ↩
           </div>
 
-          {/* Category badge */}
-          {category && <CategoryBadge id={category.id} label={category.label} />}
+          {/* Category badges */}
+          {categories.length > 0 && (
+            <div style={{ display: 'flex', flexWrap: 'wrap', gap: 6 }}>
+              {categories.map(cat => (
+                <CategoryBadge key={cat.id} id={cat.id} label={cat.label} />
+              ))}
+            </div>
+          )}
 
           {/* Title */}
           <h3

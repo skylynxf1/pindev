@@ -166,16 +166,21 @@ export async function POST(request: NextRequest) {
 
   // ── 7. Upsert tags + link to pin ───────────────────────────────────────────
   if (tags.length > 0) {
-    // Upsert tags by name, get back their IDs
-    const { data: tagRows, error: tagError } = await supabase
+    // Insert any new tags (ignore if they already exist — no UPDATE policy on tags)
+    await supabase
       .from('tags')
       .upsert(
         tags.map((name) => ({ name })),
-        { onConflict: 'name', ignoreDuplicates: false }
+        { onConflict: 'name', ignoreDuplicates: true }
       )
-      .select('id, name')
 
-    if (!tagError && tagRows && tagRows.length > 0) {
+    // Fetch all tag rows by name (works even for pre-existing tags)
+    const { data: tagRows } = await supabase
+      .from('tags')
+      .select('id, name')
+      .in('name', tags)
+
+    if (tagRows && tagRows.length > 0) {
       await supabase.from('pin_tags').upsert(
         tagRows.map((tag) => ({ pin_id: pin.id, tag_id: tag.id })),
         { onConflict: 'pin_id,tag_id', ignoreDuplicates: true }
