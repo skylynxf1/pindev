@@ -1,6 +1,6 @@
 'use client'
 
-import { useState, useEffect } from 'react'
+import { useState, useEffect, useRef } from 'react'
 import { useRouter } from 'next/navigation'
 import Image from 'next/image'
 import Link from 'next/link'
@@ -13,6 +13,14 @@ export default function PinPageClient({ pin }: { pin: Pin }) {
   const [saved, setSaved] = useState(false)
   // undefined = not yet checked, null = logged out, string = userId
   const [userId, setUserId] = useState<string | null | undefined>(undefined)
+  const videoRef = useRef<HTMLVideoElement>(null)
+
+  useEffect(() => {
+    const v = videoRef.current
+    if (!v) return
+    v.muted = true
+    v.play().catch(() => {})
+  }, [pin.media_url])
 
   useEffect(() => {
     const supabase = createClient()

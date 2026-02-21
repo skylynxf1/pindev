@@ -1,6 +1,6 @@
 'use client'
 
-import { useState, useEffect } from 'react'
+import { useState, useEffect, useRef } from 'react'
 import Image from 'next/image'
 import Link from 'next/link'
 import type { Pin, Tag } from '@/types'
@@ -74,6 +74,30 @@ function CategoryBadge({ id, label }: { id: string; label: string }) {
         {label}
       </span>
     </div>
+  )
+}
+
+/* ─────────────────────────────────────────────────────────────
+   VIDEO PREVIEW
+   ───────────────────────────────────────────────────────────── */
+function VideoPreview({ src, poster }: { src: string; poster: string }) {
+  const ref = useRef<HTMLVideoElement>(null)
+  useEffect(() => {
+    const v = ref.current
+    if (!v) return
+    v.muted = true
+    v.play().catch(() => {})
+  }, [src])
+  return (
+    <video
+      ref={ref}
+      src={src}
+      poster={poster}
+      muted
+      loop
+      playsInline
+      style={{ width: '100%', height: 'auto', display: 'block' }}
+    />
   )
 }
 
@@ -201,15 +225,7 @@ export default function PinCard({ pin, onSave, currentUserId, onDelete, onUnsave
             onClick={() => setFlipped(true)}
           >
             {pin.media_type === 'video' ? (
-              <video
-                src={pin.media_url}
-                poster={pin.thumbnail_url}
-                autoPlay
-                muted
-                loop
-                playsInline
-                style={{ width: '100%', height: 'auto', display: 'block', objectFit: 'cover' }}
-              />
+              <VideoPreview src={pin.media_url} poster={pin.thumbnail_url} />
             ) : (
               <Image
                 src={pin.thumbnail_url}

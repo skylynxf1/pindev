@@ -309,8 +309,9 @@ async function processVideoClip(
 
       const canvas = document.createElement('canvas')
       canvas.width = outW; canvas.height = outH
-      const ctx = canvas.getContext('2d')
-      if (!ctx) { URL.revokeObjectURL(url); reject(new Error('No canvas context')); return }
+      const maybeCtx = canvas.getContext('2d')
+      if (!maybeCtx) { URL.revokeObjectURL(url); reject(new Error('No canvas context')); return }
+      const ctx: CanvasRenderingContext2D = maybeCtx
 
       const mimeType = MediaRecorder.isTypeSupported('video/webm;codecs=vp9')
         ? 'video/webm;codecs=vp9' : 'video/webm'
