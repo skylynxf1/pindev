@@ -14,6 +14,33 @@ function toTitleCase(str: string) {
     .replace(/\b\w/g, (c) => c.toUpperCase());
 }
 
+/** Try to fetch the og:image from a live URL. Returns null on failure. */
+async function fetchOgImage(url: string): Promise<string | null> {
+  try {
+    const res = await fetch(url, {
+      headers: { "User-Agent": "Mozilla/5.0 (compatible; PinDev/1.0; +https://pindev.app)" },
+      signal: AbortSignal.timeout(6000),
+    });
+    if (!res.ok) return null;
+    const html = await res.text();
+    // Match og:image in either attribute order
+    const match =
+      html.match(/<meta[^>]+property=["']og:image["'][^>]+content=["']([^"']+)["']/i) ??
+      html.match(/<meta[^>]+content=["']([^"']+)["'][^>]+property=["']og:image["']/i);
+    if (!match?.[1]) return null;
+    const imgUrl = match[1].trim();
+    if (imgUrl.startsWith("http")) return imgUrl;
+    // Resolve relative URLs
+    try {
+      return new URL(imgUrl, new URL(url).origin).href;
+    } catch {
+      return null;
+    }
+  } catch {
+    return null;
+  }
+}
+
 function daysAgo(n: number): string {
   const d = new Date();
   d.setDate(d.getDate() - n);
@@ -71,25 +98,32 @@ export async function POST(req: Request) {
     }
   }
 
+  // Pre-filter repos: must have a live homepage and valid title
+  const eligible = allRepos.filter(repo => {
+    const liveUrl = repo.homepage?.trim();
+    const title = toTitleCase(repo.name);
+    return !!liveUrl && title.length >= 6;
+  });
+
+  // Fetch og:image for all eligible repos in parallel (with fallback to GitHub OG)
+  const ogImages = await Promise.all(
+    eligible.map(repo =>
+      fetchOgImage(repo.homepage!.trim()).then(
+        img => img ?? `https://opengraph.githubassets.com/1/${repo.full_name}`
+      )
+    )
+  );
+
   let created = 0;
   let skipped = 0;
   const createdTitles: string[] = [];
 
-  for (const repo of allRepos) {
+  for (let i = 0; i < eligible.length; i++) {
+    const repo = eligible[i];
     const title = toTitleCase(repo.name);
     const sourceUrl = repo.html_url;
-
-    // Must have a live demo (homepage) — ensures visual content is accessible
-    const liveUrl = repo.homepage?.trim();
-    if (!liveUrl) {
-      skipped++;
-      continue;
-    }
-
-    if (title.length < 6) {
-      skipped++;
-      continue;
-    }
+    const liveUrl = repo.homepage!.trim();
+    const imageUrl = ogImages[i];
 
     // Deduplication: check if source_url already exists
     const { data: existing } = await supabase
@@ -119,7 +153,7 @@ export async function POST(req: Request) {
       live_url: liveUrl,
       repo_url: repo.html_url,
       source_url: sourceUrl,
-      image_url: `https://opengraph.githubassets.com/1/${repo.full_name}`,
+      image_url: imageUrl,
       video_url: null,
       tags: uniqueTags,
       status: "PENDING",
@@ -134,6 +168,9 @@ export async function POST(req: Request) {
       createdTitles.push(title);
     }
   }
+
+  // Count repos skipped due to missing homepage/short title
+  skipped += allRepos.length - eligible.length;
 
   return NextResponse.json({ created, skipped, repos: createdTitles });
 }
