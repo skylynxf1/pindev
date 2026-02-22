@@ -2,6 +2,7 @@
 
 import { useEffect, useRef, useState, useCallback } from 'react'
 import PinCard from './PinCard'
+import { PlaceholderCard, PLACEHOLDER_HEIGHTS } from './PlaceholderCard'
 import type { Pin } from '@/types'
 
 interface MasonryGridProps {
@@ -15,65 +16,15 @@ interface MasonryGridProps {
   onDelete?: (id: string) => void
   onUnsave?: (id: string) => void
   onEdit?: (updated: Pin) => void
+  onAdminDelete?: (id: string) => void
+  isAdmin?: boolean
   allSaved?: boolean
   savedPinIds?: Set<string>
   emptyText?: string
   emptySubtext?: string
+  onColsChange?: (cols: number) => void
 }
 
-const PLACEHOLDER_HEIGHTS = [280, 360, 220, 400, 300, 340, 240, 380, 260, 320, 290, 440]
-
-function PlaceholderCard({ height, first, onClick, emptyText, emptySubtext }: { height: number; first: boolean; onClick?: () => void; emptyText?: string; emptySubtext?: string }) {
-  const [hovered, setHovered] = useState(false)
-  return (
-    <div
-      onMouseEnter={() => setHovered(true)}
-      onMouseLeave={() => setHovered(false)}
-      onClick={first ? onClick : undefined}
-      style={{
-        marginBottom: 16,
-        breakInside: 'avoid',
-        pageBreakInside: 'avoid',
-        height,
-        borderRadius: 18,
-        background: hovered
-          ? 'linear-gradient(135deg, var(--menthe-light) 0%, var(--brume) 100%)'
-          : 'var(--surface)',
-        border: '1.5px solid var(--border)',
-        position: 'relative',
-        overflow: 'hidden',
-        cursor: 'pointer',
-        transition: 'transform 200ms ease, box-shadow 200ms ease, background 200ms ease',
-        transform: hovered ? 'translateY(-4px)' : 'translateY(0)',
-        boxShadow: hovered ? '0 12px 32px rgba(0,0,0,0.10)' : 'none',
-        display: 'flex',
-        alignItems: 'center',
-        justifyContent: 'center',
-      }}
-    >
-      {first && (
-        <div style={{ textAlign: 'center', padding: 28 }}>
-          <div style={{
-            width: 48, height: 48, borderRadius: 14,
-            background: 'var(--menthe-light)',
-            display: 'flex', alignItems: 'center', justifyContent: 'center',
-            margin: '0 auto 14px',
-          }}>
-            <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="var(--menthe)" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
-              <path d="M12 5v14M5 12h14"/>
-            </svg>
-          </div>
-          <p style={{ fontSize: '0.9375rem', fontWeight: 700, color: 'var(--text)', lineHeight: 1.3, margin: '0 0 5px' }}>
-            {emptyText ?? 'no genius here yet...'}
-          </p>
-          <p style={{ fontSize: '0.8125rem', color: 'var(--menthe)', fontWeight: 600, margin: 0 }}>
-            {emptySubtext ?? 'add yours!'}
-          </p>
-        </div>
-      )}
-    </div>
-  )
-}
 
 export default function MasonryGrid({
   pins,
@@ -86,10 +37,13 @@ export default function MasonryGrid({
   onDelete,
   onUnsave,
   onEdit,
+  onAdminDelete,
+  isAdmin,
   allSaved,
   savedPinIds,
   emptyText,
   emptySubtext,
+  onColsChange,
 }: MasonryGridProps) {
   const sentinelRef = useRef<HTMLDivElement>(null)
   const [cols, setCols] = useState(4)
@@ -107,11 +61,14 @@ export default function MasonryGrid({
   useEffect(() => {
     const update = () => {
       const w = window.innerWidth
-      if (w < 640) setCols(1)
-      else if (w < 900) setCols(2)
-      else if (w < 1200) setCols(3)
-      else if (w < 1500) setCols(4)
-      else setCols(5)
+      let c = 4
+      if (w < 640) c = 1
+      else if (w < 900) c = 2
+      else if (w < 1200) c = 3
+      else if (w < 1500) c = 4
+      else c = 5
+      setCols(c)
+      onColsChange?.(c)
     }
     update()
     window.addEventListener('resize', update)
@@ -145,7 +102,7 @@ export default function MasonryGrid({
   const gridStyle: React.CSSProperties = { columns: cols, columnGap: 16 }
   const itemStyle: React.CSSProperties = { marginBottom: 16, breakInside: 'avoid', pageBreakInside: 'avoid' }
 
-  // Empty state — show placeholder cards so the masonry layout is never blank
+  // Empty state
   if (!loading && pins.length === 0) {
     return (
       <div style={gridStyle}>
@@ -158,10 +115,9 @@ export default function MasonryGrid({
 
   return (
     <div>
-      {/* Single grid — real pins + CTA placeholders flow together */}
       <div style={gridStyle}>
         {pins.map((pin) => (
-          <div key={pin.id} style={itemStyle}>
+          <div key={pin.id} data-pin-item style={itemStyle}>
             <PinCard
               pin={pin}
               onSave={onSave}
@@ -169,22 +125,30 @@ export default function MasonryGrid({
               onDelete={onDelete}
               onUnsave={onUnsave}
               onEdit={onEdit}
+              onAdminDelete={onAdminDelete}
+              isAdmin={isAdmin}
               initialSaved={allSaved ?? savedPinIds?.has(pin.id)}
             />
           </div>
         ))}
 
-        {!hasMore && pins.length > 0 && (
-          PLACEHOLDER_HEIGHTS.slice(0, cols * 2).map((h, i) => (
-            <PlaceholderCard key={`end-${i}`} height={h} first={i === 0} onClick={onEmptyClick} emptyText={emptyText} emptySubtext={emptySubtext} />
-          ))
-        )}
+        {/* End-of-feed placeholders — flow into shortest columns so they appear at the bottom */}
+        {!hasMore && pins.length > 0 && PLACEHOLDER_HEIGHTS.slice(0, cols).map((h, i) => (
+          <PlaceholderCard
+            key={`end-${i}`}
+            height={h}
+            first={i === 0}
+            onClick={onEmptyClick}
+            emptyText={emptyText}
+            emptySubtext={emptySubtext}
+          />
+        ))}
       </div>
 
       {/* Sentinel for IntersectionObserver */}
       <div ref={sentinelRef} style={{ height: 1 }} />
 
-      {/* Loading skeletons — enough to cover 2-3 screens so scroll never hits an abrupt stop */}
+      {/* Loading skeletons */}
       {loading && (
         <div style={{ ...gridStyle, marginTop: 16 }}>
           {Array.from({ length: cols * 7 }).map((_, i) => (

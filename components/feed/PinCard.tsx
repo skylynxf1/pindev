@@ -117,10 +117,12 @@ interface PinCardProps {
   onDelete?: (id: string) => void
   onUnsave?: (id: string) => void
   onEdit?: (updated: Pin) => void
+  onAdminDelete?: (id: string) => void
+  isAdmin?: boolean
   initialSaved?: boolean
 }
 
-export default function PinCard({ pin: initialPin, onSave, currentUserId, onDelete, onUnsave, onEdit, initialSaved }: PinCardProps) {
+export default function PinCard({ pin: initialPin, onSave, currentUserId, onDelete, onUnsave, onEdit, onAdminDelete, isAdmin, initialSaved }: PinCardProps) {
   const [pin, setPin] = useState(initialPin)
   const [flipped, setFlipped] = useState(false)
   const [hovered, setHovered] = useState(false)
@@ -130,6 +132,8 @@ export default function PinCard({ pin: initialPin, onSave, currentUserId, onDele
   const [saving, setSaving] = useState(false)
   const [unsaving, setUnsaving] = useState(false)
   const [showEditModal, setShowEditModal] = useState(false)
+  const [adminConfirm, setAdminConfirm] = useState(false)
+  const [adminDeleting, setAdminDeleting] = useState(false)
   const categories = getCategoriesFromTags(pin.tags)
   const isOwner = !!currentUserId && currentUserId === pin.owner_id
 
@@ -200,6 +204,19 @@ export default function PinCard({ pin: initialPin, onSave, currentUserId, onDele
     } else {
       setDeleting(false)
       setConfirmDelete(false)
+    }
+  }
+
+  async function handleAdminDelete(e: React.MouseEvent) {
+    e.stopPropagation()
+    if (!adminConfirm) { setAdminConfirm(true); return }
+    setAdminDeleting(true)
+    const res = await fetch(`/api/admin/pins/${pin.id}`, { method: 'DELETE' })
+    if (res.ok) {
+      onAdminDelete?.(pin.id)
+    } else {
+      setAdminDeleting(false)
+      setAdminConfirm(false)
     }
   }
 
@@ -321,6 +338,40 @@ export default function PinCard({ pin: initialPin, onSave, currentUserId, onDele
                   <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round">
                     <path d="M18 6 6 18M6 6l12 12"/>
                   </svg>
+                </button>
+              )}
+
+              {/* Admin delete — shown to admin for pins they don't own */}
+              {isAdmin && !isOwner && (
+                <button
+                  type="button"
+                  onClick={handleAdminDelete}
+                  disabled={adminDeleting}
+                  title="Admin delete"
+                  style={{
+                    display: 'flex', alignItems: 'center', justifyContent: 'center',
+                    borderRadius: 14,
+                    padding: adminConfirm ? '5px 10px' : '5px 8px',
+                    fontSize: '0.75rem', fontWeight: 700,
+                    color: '#fff', border: 'none',
+                    background: adminConfirm ? '#dc2626' : 'rgba(220,38,38,0.75)',
+                    cursor: adminDeleting ? 'not-allowed' : 'pointer',
+                    gap: 4, transition: 'background 150ms',
+                    whiteSpace: 'nowrap',
+                  }}
+                >
+                  {adminDeleting ? (
+                    <span style={{ width: 12, height: 12, borderRadius: '50%', border: '2px solid rgba(255,255,255,0.4)', borderTopColor: '#fff', animation: 'spin .7s linear infinite', display: 'inline-block' }} />
+                  ) : adminConfirm ? (
+                    'Confirm admin delete?'
+                  ) : (
+                    <>
+                      <svg width="11" height="11" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round">
+                        <polyline points="3 6 5 6 21 6"/><path d="M19 6l-1 14a2 2 0 0 1-2 2H8a2 2 0 0 1-2-2L5 6"/><path d="M10 11v6M14 11v6"/><path d="M9 6V4h6v2"/>
+                      </svg>
+                      ⚑
+                    </>
+                  )}
                 </button>
               )}
 

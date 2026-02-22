@@ -3,7 +3,9 @@
 import { useState, useMemo, useEffect, useCallback } from 'react'
 import { useRouter } from 'next/navigation'
 import Link from 'next/link'
+import LandingAnimation from '@/components/LandingAnimation'
 import MasonryGrid from '@/components/feed/MasonryGrid'
+import AdminSortableGrid from '@/components/feed/AdminSortableGrid'
 import CategoryFilterBar, { type CategoryId } from '@/components/feed/CategoryFilterBar'
 import { usePins } from '@/lib/hooks/usePins'
 import { createClient } from '@/lib/supabase/client'
@@ -128,13 +130,27 @@ function AuthModal({ onDismiss }: { onDismiss: () => void }) {
    ───────────────────────────────────────────────────────────── */
 export default function HomePage() {
   const router = useRouter()
-  const { pins, loading, hasMore, error, fetchNextPage, removePin, updatePin } = usePins()
+  const { pins, loading, hasMore, error, fetchNextPage, removePin, updatePin, reorderPins } = usePins()
   const [activeCategory, setActiveCategory] = useState<CategoryId>('all')
   const [authReady, setAuthReady] = useState(false)
   const [isLoggedIn, setIsLoggedIn] = useState(false)
   const [currentUserId, setCurrentUserId] = useState<string | undefined>(undefined)
   const [authModalDismissed, setAuthModalDismissed] = useState(true)
   const [savedPinIds, setSavedPinIds] = useState<Set<string>>(new Set())
+  const [isAdmin, setIsAdmin] = useState(false)
+  const [reorderMode, setReorderMode] = useState(false)
+  const [gridCols, setGridCols] = useState(4)
+
+  const handleAdminDelete = useCallback((id: string) => removePin(id), [removePin])
+
+  const handleReorder = useCallback(async (ids: string[]) => {
+    reorderPins(ids)
+    await fetch('/api/admin/pins/reorder', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ ids }),
+    })
+  }, [reorderPins])
 
   const handleEmptyClick = useCallback(() => {
     if (isLoggedIn) {
@@ -156,6 +172,8 @@ export default function HomePage() {
           .then(r => r.json())
           .then(d => setSavedPinIds(new Set(d.ids ?? [])))
           .catch(() => {})
+        supabase.from('profiles').select('username').eq('id', userId).single()
+          .then(({ data: p }) => setIsAdmin(p?.username === 'pindev'))
       }
     })
   }, [])
@@ -169,6 +187,7 @@ export default function HomePage() {
 
   return (
     <main style={{ minHeight: '100vh', background: 'var(--bg)' }}>
+      <LandingAnimation />
       {/* Sticky filter bar */}
       <div
         style={{
@@ -201,18 +220,59 @@ export default function HomePage() {
           </div>
         )}
 
-        <MasonryGrid
-          pins={filteredPins}
-          hasMore={hasMore}
-          loading={loading}
-          onLoadMore={fetchNextPage}
-          onSave={() => setAuthModalDismissed(false)}
-          onEmptyClick={handleEmptyClick}
-          currentUserId={currentUserId}
-          onDelete={removePin}
-          onEdit={updatePin}
-          savedPinIds={savedPinIds}
-        />
+        {/* Admin reorder toggle */}
+        {isAdmin && (
+          <div style={{ display: 'flex', justifyContent: 'flex-end', marginBottom: 12 }}>
+            <button
+              onClick={() => setReorderMode(r => !r)}
+              style={{
+                display: 'inline-flex', alignItems: 'center', gap: 6,
+                padding: '6px 14px', borderRadius: 10,
+                border: `1.5px solid ${reorderMode ? 'var(--menthe)' : 'var(--border)'}`,
+                background: reorderMode ? 'var(--menthe-light)' : 'transparent',
+                color: reorderMode ? 'var(--menthe)' : 'var(--muted)',
+                fontSize: '0.8125rem', fontWeight: 600,
+                cursor: 'pointer', transition: 'all 150ms',
+              }}
+            >
+              <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round">
+                <line x1="8" y1="6" x2="21" y2="6"/><line x1="8" y1="12" x2="21" y2="12"/><line x1="8" y1="18" x2="21" y2="18"/>
+                <line x1="3" y1="6" x2="3.01" y2="6"/><line x1="3" y1="12" x2="3.01" y2="12"/><line x1="3" y1="18" x2="3.01" y2="18"/>
+              </svg>
+              {reorderMode ? 'Done reordering' : 'Reorder feed'}
+            </button>
+          </div>
+        )}
+
+        {reorderMode && isAdmin ? (
+          <AdminSortableGrid
+            pins={filteredPins}
+            currentUserId={currentUserId}
+            onDelete={removePin}
+            onAdminDelete={handleAdminDelete}
+            onEdit={updatePin}
+            onEmptyClick={handleEmptyClick}
+            savedPinIds={savedPinIds}
+            cols={gridCols}
+            onReorder={handleReorder}
+          />
+        ) : (
+          <MasonryGrid
+            pins={filteredPins}
+            hasMore={hasMore}
+            loading={loading}
+            onLoadMore={fetchNextPage}
+            onSave={() => setAuthModalDismissed(false)}
+            onEmptyClick={handleEmptyClick}
+            currentUserId={currentUserId}
+            onDelete={removePin}
+            onEdit={updatePin}
+            onAdminDelete={handleAdminDelete}
+            isAdmin={isAdmin}
+            savedPinIds={savedPinIds}
+            onColsChange={setGridCols}
+          />
+        )}
       </div>
 
       {/* Auth gate modal */}

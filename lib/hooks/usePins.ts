@@ -4,15 +4,15 @@ import { useEffect, useState, useCallback, useRef } from 'react'
 import { createClient } from '@/lib/supabase/client'
 import type { Pin, Tag } from '@/types'
 
-const PAGE_SIZE = 20
+const PAGE_SIZE = 40
 
 export function usePins(options?: { initialPins?: Pin[] }) {
   const [pins, setPins] = useState<Pin[]>(options?.initialPins ?? [])
   const [loading, setLoading] = useState(false)
   const [hasMore, setHasMore] = useState(true)
   const [error, setError] = useState<string | null>(null)
-  // cursor = created_at of the last fetched pin
-  const cursorRef = useRef<string | null>(null)
+  // offset-based pagination works with any ORDER BY (sort_index + created_at)
+  const offsetRef = useRef<number>(0)
   const isFetchingRef = useRef(false)
 
   const fetchPage = useCallback(async () => {
@@ -23,25 +23,22 @@ export function usePins(options?: { initialPins?: Pin[] }) {
 
     try {
       const supabase = createClient()
+      const from = offsetRef.current
+      const to = from + PAGE_SIZE - 1
 
-      let query = supabase
+      const { data, error: sbError } = await supabase
         .from('pins')
         .select(`
           id, owner_id, title, description, live_url, repo_url,
           media_url, media_type, thumbnail_url, is_published,
-          created_at, updated_at,
+          sort_index, created_at, updated_at,
           profiles ( username, display_name, avatar_url ),
           pin_tags ( tags ( id, name ) )
         `)
         .eq('is_published', true)
+        .order('sort_index', { ascending: true, nullsFirst: false })
         .order('created_at', { ascending: false })
-        .limit(PAGE_SIZE)
-
-      if (cursorRef.current) {
-        query = query.lt('created_at', cursorRef.current)
-      }
-
-      const { data, error: sbError } = await query
+        .range(from, to)
 
       if (sbError) throw new Error('Failed to load pins.')
 
@@ -56,6 +53,7 @@ export function usePins(options?: { initialPins?: Pin[] }) {
         media_type: row.media_type as 'image' | 'video',
         thumbnail_url: row.thumbnail_url as string,
         is_published: row.is_published as boolean,
+        sort_index: row.sort_index as number | null,
         created_at: row.created_at as string,
         updated_at: row.updated_at as string,
         profile: Array.isArray(row.profiles)
@@ -69,9 +67,7 @@ export function usePins(options?: { initialPins?: Pin[] }) {
       })) as Pin[]
 
       if (rows.length < PAGE_SIZE) setHasMore(false)
-      if (rows.length > 0) {
-        cursorRef.current = rows[rows.length - 1].created_at
-      }
+      offsetRef.current += rows.length
 
       setPins((prev) => {
         const ids = new Set(prev.map((p) => p.id))
@@ -98,5 +94,19 @@ export function usePins(options?: { initialPins?: Pin[] }) {
     setPins(prev => prev.map(p => p.id === updated.id ? { ...p, ...updated } : p))
   }
 
-  return { pins, loading, hasMore, error, fetchNextPage: fetchPage, removePin, updatePin }
+  function reorderPins(orderedIds: string[]) {
+    setPins(prev => {
+      const map = new Map(prev.map(p => [p.id, p]))
+      const reordered = orderedIds.map((id, i) => {
+        const p = map.get(id)
+        return p ? { ...p, sort_index: i * 10 } : null
+      }).filter(Boolean) as Pin[]
+      // append any pins not in orderedIds (shouldn't happen, but safe)
+      const reorderedSet = new Set(orderedIds)
+      const rest = prev.filter(p => !reorderedSet.has(p.id))
+      return [...reordered, ...rest]
+    })
+  }
+
+  return { pins, loading, hasMore, error, fetchNextPage: fetchPage, removePin, updatePin, reorderPins }
 }

@@ -19,6 +19,7 @@ export type Pin = {
   media_type: 'image' | 'video'
   thumbnail_url: string
   is_published: boolean
+  sort_index?: number | null
   created_at: string
   updated_at: string
   // joined
