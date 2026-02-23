@@ -235,6 +235,7 @@ input[type="search"]::-webkit-search-decoration { -webkit-appearance: none; }
 }
 
 /* Pin fall-in (used by LandingAnimation reveal) */
+body.intro-active [data-pin-item] { opacity: 0; }
 @keyframes pinFallIn {
   0%   { opacity: 0; transform: translateY(-18px) scale(0.97); }
   55%  { opacity: 1; transform: translateY(4px) scale(1.01); }
@@ -242,7 +243,7 @@ input[type="search"]::-webkit-search-decoration { -webkit-appearance: none; }
   100% { opacity: 1; transform: translateY(0) scale(1); }
 }
 .pin-fall-in {
-  animation: pinFallIn 0.5s cubic-bezier(.34,1.56,.64,1) both;
+  animation: pinFallIn 0.35s cubic-bezier(.34,1.56,.64,1) both;
 }
 
 /* Spin */
