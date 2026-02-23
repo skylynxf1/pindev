@@ -277,7 +277,7 @@ export default async function ProfilePage({ params, searchParams }: Props) {
         </div>
 
         {/* ── Tabs ── */}
-        <ProfileTabs pins={pins} boards={boards} isOwnProfile={isOwnProfile} initialTab={tab === 'boards' ? 'boards' : undefined} currentUserId={currentUser?.id} />
+        <ProfileTabs pins={pins} boards={boards} isOwnProfile={isOwnProfile} initialTab={tab === 'boards' ? 'boards' : undefined} currentUserId={currentUser?.id} username={profile.username} />
       </div>
     </main>
   )

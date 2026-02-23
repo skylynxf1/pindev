@@ -18,6 +18,7 @@ interface ProfileTabsProps {
   isOwnProfile: boolean
   initialTab?: 'boards'
   currentUserId?: string
+  username: string
 }
 
 /* ─────────────────────────────────────────────────────────────
@@ -109,7 +110,7 @@ const BOARD_CARD_STYLE: React.CSSProperties = {
   height: '100%',
 }
 
-function BoardGrid({ boards, onBoardAdded, isOwnProfile }: { boards: Board[]; onBoardAdded: (b: Board) => void; isOwnProfile: boolean }) {
+function BoardGrid({ boards, onBoardAdded, isOwnProfile, username }: { boards: Board[]; onBoardAdded: (b: Board) => void; isOwnProfile: boolean; username: string }) {
   const [showCreate, setShowCreate] = useState(false)
   const [newBoardName, setNewBoardName] = useState('')
   const [creating, setCreating] = useState(false)
@@ -163,7 +164,7 @@ function BoardGrid({ boards, onBoardAdded, isOwnProfile }: { boards: Board[]; on
       {/* Board cards */}
       {boards.map(board => {
         const isSaved = board.name === 'Saved'
-        const href = isSaved ? '/saved' : `/boards/${board.id}`
+        const href = isSaved ? `/profile/${username}/saved` : `/boards/${board.id}`
         return (
           <Link key={board.id} href={href} style={{ textDecoration: 'none', color: 'inherit' }}>
             <div className="pin-lift" style={BOARD_CARD_STYLE}>
@@ -319,7 +320,7 @@ function BoardGrid({ boards, onBoardAdded, isOwnProfile }: { boards: Board[]; on
 /* ─────────────────────────────────────────────────────────────
    PROFILE TABS
    ───────────────────────────────────────────────────────────── */
-export default function ProfileTabs({ pins, boards, isOwnProfile, initialTab, currentUserId }: ProfileTabsProps) {
+export default function ProfileTabs({ pins, boards, isOwnProfile, initialTab, currentUserId, username }: ProfileTabsProps) {
   const defaultTab: Tab = initialTab ?? (isOwnProfile ? 'my-pins' : 'pins')
   const [activeTab, setActiveTab] = useState<Tab>(defaultTab)
   const [boardList, setBoardList] = useState<Board[]>(boards)
@@ -392,7 +393,7 @@ export default function ProfileTabs({ pins, boards, isOwnProfile, initialTab, cu
       {(activeTab === 'my-pins' || activeTab === 'pins') && (
         <ProfilePinGrid initialPins={pins} currentUserId={currentUserId} isOwnProfile={isOwnProfile} />
       )}
-      {activeTab === 'boards'  && <BoardGrid boards={boardList} onBoardAdded={b => setBoardList(prev => [...prev, b])} isOwnProfile={isOwnProfile} />}
+      {activeTab === 'boards'  && <BoardGrid boards={boardList} onBoardAdded={b => setBoardList(prev => [...prev, b])} isOwnProfile={isOwnProfile} username={username} />}
     </div>
   )
 }

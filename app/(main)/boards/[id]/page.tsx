@@ -13,10 +13,12 @@ import type { Pin, Board } from '@/types'
 function BoardPinGrid({
   pins,
   boardId,
+  isOwner,
   onRemove,
 }: {
   pins: Pin[]
   boardId: string
+  isOwner: boolean
   onRemove: (pinId: string) => void
 }) {
   const [removing, setRemoving] = useState<string | null>(null)
@@ -73,6 +75,7 @@ function BoardPinGrid({
         <PinItem
           key={pin.id}
           pin={pin}
+          isOwner={isOwner}
           removing={removing === pin.id}
           onRemove={() => handleRemove(pin.id)}
         />
@@ -83,10 +86,12 @@ function BoardPinGrid({
 
 function PinItem({
   pin,
+  isOwner,
   removing,
   onRemove,
 }: {
   pin: Pin
+  isOwner: boolean
   removing: boolean
   onRemove: () => void
 }) {
@@ -115,39 +120,41 @@ function PinItem({
           unoptimized
         />
 
-        {/* Remove button */}
-        <button
-          onClick={onRemove}
-          disabled={removing}
-          style={{
-            position: 'absolute', top: 8, right: 8,
-            display: 'flex', alignItems: 'center', gap: 4,
-            padding: '5px 10px', borderRadius: 10,
-            border: 'none',
-            background: removing ? '#f87171' : '#ef4444',
-            color: '#fff',
-            fontSize: '0.6875rem', fontWeight: 700,
-            cursor: removing ? 'not-allowed' : 'pointer',
-            opacity: hovered ? 1 : 0,
-            transition: 'opacity 150ms, background 150ms',
-            zIndex: 2,
-          }}
-        >
-          {removing ? (
-            <span style={{
-              width: 10, height: 10, borderRadius: '50%',
-              border: '2px solid rgba(255,255,255,0.4)',
-              borderTopColor: '#fff',
-              animation: 'spin .7s linear infinite',
-              display: 'inline-block',
-            }} />
-          ) : (
-            <svg width="10" height="10" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="3" strokeLinecap="round">
-              <path d="M18 6 6 18M6 6l12 12"/>
-            </svg>
-          )}
-          {removing ? 'Removing' : 'Remove'}
-        </button>
+        {/* Remove button — owner only */}
+        {isOwner && (
+          <button
+            onClick={onRemove}
+            disabled={removing}
+            style={{
+              position: 'absolute', top: 8, right: 8,
+              display: 'flex', alignItems: 'center', gap: 4,
+              padding: '5px 10px', borderRadius: 10,
+              border: 'none',
+              background: removing ? '#f87171' : '#ef4444',
+              color: '#fff',
+              fontSize: '0.6875rem', fontWeight: 700,
+              cursor: removing ? 'not-allowed' : 'pointer',
+              opacity: hovered ? 1 : 0,
+              transition: 'opacity 150ms, background 150ms',
+              zIndex: 2,
+            }}
+          >
+            {removing ? (
+              <span style={{
+                width: 10, height: 10, borderRadius: '50%',
+                border: '2px solid rgba(255,255,255,0.4)',
+                borderTopColor: '#fff',
+                animation: 'spin .7s linear infinite',
+                display: 'inline-block',
+              }} />
+            ) : (
+              <svg width="10" height="10" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="3" strokeLinecap="round">
+                <path d="M18 6 6 18M6 6l12 12"/>
+              </svg>
+            )}
+            {removing ? 'Removing' : 'Remove'}
+          </button>
+        )}
 
         {/* Live link */}
         <a
@@ -538,6 +545,7 @@ export default function BoardPage() {
           <BoardPinGrid
             pins={pins}
             boardId={boardId}
+            isOwner={isOwner}
             onRemove={id => setPins(prev => prev.filter(p => p.id !== id))}
           />
         )}
