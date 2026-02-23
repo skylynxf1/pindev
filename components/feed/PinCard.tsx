@@ -6,11 +6,15 @@ import Link from 'next/link'
 import { useRouter } from 'next/navigation'
 import type { Pin, Tag } from '@/types'
 import EditPinModal from './EditPinModal'
+import LikeButton from './LikeButton'
 
 /* ─────────────────────────────────────────────────────────────
    CATEGORY DETECTION
    ───────────────────────────────────────────────────────────── */
 const CATEGORY_TAG_MAP: Record<string, { label: string; id: string }> = {
+  design:        { label: 'DESIGN',     id: 'design' },
+  ui:            { label: 'DESIGN',     id: 'design' },
+  ux:            { label: 'DESIGN',     id: 'design' },
   website:       { label: 'WEBSITE',    id: 'website' },
   web:           { label: 'WEBSITE',    id: 'website' },
   landing:       { label: 'WEBSITE',    id: 'website' },
@@ -45,6 +49,12 @@ function getCategoriesFromTags(tags?: Tag[]) {
    CATEGORY BADGE
    ───────────────────────────────────────────────────────────── */
 const CATEGORY_ICONS: Record<string, React.ReactNode> = {
+  design: (
+    <svg width="11" height="11" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true">
+      <path d="M12 20h9"/>
+      <path d="M16.5 3.5a2.121 2.121 0 0 1 3 3L7 19l-4 1 1-4L16.5 3.5z"/>
+    </svg>
+  ),
   website: (
     <svg width="11" height="11" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true">
       <rect x="2" y="3" width="20" height="14" rx="2" ry="2"/>
@@ -120,11 +130,15 @@ interface PinCardProps {
   onUnsave?: (id: string) => void
   onEdit?: (updated: Pin) => void
   onAdminDelete?: (id: string) => void
+  onFeatureToggle?: (id: string, featuredUntil: string | null) => void
   isAdmin?: boolean
   initialSaved?: boolean
+  initialLikeCount?: number
+  initialLikedByMe?: boolean
+  onAuthRequired?: () => void
 }
 
-export default function PinCard({ pin: initialPin, onSave, currentUserId, onDelete, onUnsave, onEdit, onAdminDelete, isAdmin, initialSaved }: PinCardProps) {
+export default function PinCard({ pin: initialPin, onSave, currentUserId, onDelete, onUnsave, onEdit, onAdminDelete, onFeatureToggle, isAdmin, initialSaved, initialLikeCount, initialLikedByMe, onAuthRequired }: PinCardProps) {
   const router = useRouter()
   const [pin, setPin] = useState(initialPin)
   const [hovered, setHovered] = useState(false)
@@ -136,8 +150,10 @@ export default function PinCard({ pin: initialPin, onSave, currentUserId, onDele
   const [showEditModal, setShowEditModal] = useState(false)
   const [adminConfirm, setAdminConfirm] = useState(false)
   const [adminDeleting, setAdminDeleting] = useState(false)
+  const [featuring, setFeaturing] = useState(false)
   const categories = getCategoriesFromTags(pin.tags)
   const isOwner = !!currentUserId && currentUserId === pin.owner_id
+  const isFeatured = !!pin.featured_until && new Date(pin.featured_until) > new Date()
 
   // Keep pin in sync when parent updates
   useEffect(() => { setPin(initialPin) }, [initialPin])
@@ -226,6 +242,21 @@ export default function PinCard({ pin: initialPin, onSave, currentUserId, onDele
     }
   }
 
+  async function handleFeatureClick(e: React.MouseEvent) {
+    e.stopPropagation()
+    setFeaturing(true)
+    try {
+      const res = await fetch(`/api/admin/pins/${pin.id}/feature`, { method: 'POST' })
+      if (res.ok) {
+        const data = await res.json()
+        setPin(prev => ({ ...prev, featured_until: data.featured_until }))
+        onFeatureToggle?.(pin.id, data.featured_until)
+      }
+    } finally {
+      setFeaturing(false)
+    }
+  }
+
   return (
     <div>
       {/* Card — clicking anywhere (except buttons/links) opens detail view */}
@@ -265,6 +296,30 @@ export default function PinCard({ pin: initialPin, onSave, currentUserId, onDele
               className="w-full h-auto object-cover"
               unoptimized
             />
+          )}
+
+          {/* Featured badge — always visible when pin is featured */}
+          {isFeatured && (
+            <div
+              style={{
+                position: 'absolute',
+                top: 8,
+                left: 8,
+                zIndex: 2,
+                display: 'flex',
+                alignItems: 'center',
+                gap: 4,
+                background: 'rgba(245,158,11,0.88)',
+                borderRadius: 8,
+                padding: '3px 7px',
+                backdropFilter: 'blur(4px)',
+              }}
+            >
+              <svg width="10" height="10" viewBox="0 0 24 24" fill="#fff" stroke="none" aria-hidden="true">
+                <path d="M12 2l3.09 6.26L22 9.27l-5 4.87 1.18 6.88L12 17.77l-6.18 3.25L7 14.14 2 9.27l6.91-1.01L12 2z"/>
+              </svg>
+              <span style={{ fontSize: '9px', fontWeight: 700, color: '#fff', letterSpacing: '0.06em', lineHeight: 1 }}>FEATURED</span>
+            </div>
           )}
 
           {/* Hover overlay */}
@@ -317,6 +372,47 @@ export default function PinCard({ pin: initialPin, onSave, currentUserId, onDele
                 </>
               ) : 'Save'}
             </button>
+
+            {/* Admin feature toggle */}
+            {isAdmin && (
+              <button
+                type="button"
+                onClick={handleFeatureClick}
+                disabled={featuring}
+                title={isFeatured ? 'Remove from featured' : 'Feature this pin (7 days)'}
+                style={{
+                  display: 'flex', alignItems: 'center', justifyContent: 'center',
+                  borderRadius: 14, padding: '5px 8px',
+                  border: `1.5px solid ${isFeatured ? '#f59e0b' : 'rgba(245,158,11,0.55)'}`,
+                  background: isFeatured ? 'rgba(245,158,11,0.88)' : 'rgba(0,0,0,0.45)',
+                  color: '#fff',
+                  cursor: featuring ? 'not-allowed' : 'pointer',
+                  transition: 'all 150ms',
+                }}
+                onMouseEnter={e => {
+                  if (!featuring) {
+                    const el = e.currentTarget as HTMLElement
+                    el.style.background = 'rgba(245,158,11,0.92)'
+                    el.style.borderColor = '#f59e0b'
+                  }
+                }}
+                onMouseLeave={e => {
+                  if (!featuring) {
+                    const el = e.currentTarget as HTMLElement
+                    el.style.background = isFeatured ? 'rgba(245,158,11,0.88)' : 'rgba(0,0,0,0.45)'
+                    el.style.borderColor = isFeatured ? '#f59e0b' : 'rgba(245,158,11,0.55)'
+                  }
+                }}
+              >
+                {featuring ? (
+                  <span style={{ width: 11, height: 11, borderRadius: '50%', border: '2px solid rgba(255,255,255,0.4)', borderTopColor: '#fff', animation: 'spin .7s linear infinite', display: 'inline-block' }} />
+                ) : (
+                  <svg width="12" height="12" viewBox="0 0 24 24" fill={isFeatured ? '#fff' : 'none'} stroke="#fff" strokeWidth="2" aria-hidden="true">
+                    <path d="M12 2l3.09 6.26L22 9.27l-5 4.87 1.18 6.88L12 17.77l-6.18 3.25L7 14.14 2 9.27l6.91-1.01L12 2z"/>
+                  </svg>
+                )}
+              </button>
+            )}
 
             {/* Remove from saved — visible on saved page */}
             {onUnsave && (
@@ -523,6 +619,14 @@ export default function PinCard({ pin: initialPin, onSave, currentUserId, onDele
               </svg>
               Live
             </a>
+
+            <LikeButton
+              pinId={pin.id}
+              initialLikeCount={initialLikeCount}
+              initialLikedByMe={initialLikedByMe}
+              currentUserId={currentUserId}
+              onAuthRequired={onAuthRequired}
+            />
           </div>
         </div>
       </div>

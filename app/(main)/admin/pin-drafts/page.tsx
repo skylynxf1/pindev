@@ -20,12 +20,25 @@ type IngestResult = {
   created: number;
   skipped: number;
   repos: string[];
+  sources?: string[];
+  cleared?: number;
 } | null;
 
 // which button is currently fetching — null means idle
-type IngestSource = "github" | "ui" | null;
+type IngestSource = "github" | "ui" | "discovery" | null;
 
 const SECRET = process.env.NEXT_PUBLIC_ADMIN_DRAFTS_SECRET ?? "";
+
+/** Safely parse JSON from a fetch Response — never throws on empty/HTML bodies. */
+async function safeJson(res: Response): Promise<Record<string, unknown>> {
+  try {
+    const text = await res.text();
+    if (!text.trim()) return { error: `HTTP ${res.status}: empty response (function may have timed out)` };
+    return JSON.parse(text);
+  } catch {
+    return { error: `HTTP ${res.status}: non-JSON response` };
+  }
+}
 
 export default function AdminPinDraftsPage() {
   const [drafts, setDrafts] = useState<Draft[]>([]);
@@ -87,17 +100,55 @@ export default function AdminPinDraftsPage() {
         method: "POST",
         headers: { Authorization: `Bearer ${SECRET}` },
       });
-      const json = await res.json();
+      const json = await safeJson(res);
       if (!res.ok) {
-        setIngestErr(json.error || "Ingestion failed");
+        setIngestErr((json.error as string) || "Ingestion failed");
       } else {
-        setIngestResult(json);
+        setIngestResult(json as unknown as IngestResult);
       }
     } catch (e: unknown) {
       setIngestErr(e instanceof Error ? e.message : "Unknown error");
     } finally {
       setIngesting(null);
-      await load(); // always refresh drafts after ingest
+      await load();
+    }
+  }
+
+  async function runDiscovery() {
+    setIngesting("discovery");
+    setIngestResult(null);
+    setIngestErr(null);
+
+    try {
+      // Step 1: clear all pending drafts
+      const clearRes = await fetch("/api/admin/pin-drafts/clear", {
+        method: "POST",
+        headers: { Authorization: `Bearer ${SECRET}` },
+      });
+      const clearJson = await safeJson(clearRes);
+      if (!clearRes.ok) {
+        setIngestErr((clearJson.error as string) || "Clear failed");
+        return;
+      }
+      const cleared: number = (clearJson.deleted as number) ?? 0;
+
+      // Step 2: run multi-source discovery
+      const discRes = await fetch("/api/admin/ingest-discovery", {
+        method: "POST",
+        headers: { Authorization: `Bearer ${SECRET}` },
+      });
+      const discJson = await safeJson(discRes);
+
+      if (!discRes.ok) {
+        setIngestErr((discJson.error as string) || "Discovery failed");
+      } else {
+        setIngestResult({ ...(discJson as unknown as IngestResult), cleared } as IngestResult);
+      }
+    } catch (e: unknown) {
+      setIngestErr(e instanceof Error ? e.message : "Unknown error");
+    } finally {
+      setIngesting(null);
+      await load();
     }
   }
 
@@ -116,8 +167,25 @@ export default function AdminPinDraftsPage() {
           Pin Drafts{!loading && ` (${pendingCount} pending)`}
         </h1>
 
-        {/* Ingest buttons stacked */}
+        {/* Ingest buttons */}
         <div style={{ display: "flex", flexDirection: "column", gap: 8 }}>
+          {/* Primary: Refresh Discovery */}
+          <IngestButton
+            label="Refresh Discovery"
+            loading={ingesting === "discovery"}
+            disabled={isBusy}
+            onClick={runDiscovery}
+            primary
+            icon={
+              <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round">
+                <path d="M3 12a9 9 0 0 1 9-9 9.75 9.75 0 0 1 6.74 2.74L21 8"/>
+                <path d="M21 3v5h-5"/>
+                <path d="M21 12a9 9 0 0 1-9 9 9.75 9.75 0 0 1-6.74-2.74L3 16"/>
+                <path d="M8 16H3v5"/>
+              </svg>
+            }
+          />
+          {/* Legacy sources */}
           <IngestButton
             label="Fetch GitHub Trending"
             loading={ingesting === "github"}
@@ -156,9 +224,17 @@ export default function AdminPinDraftsPage() {
           fontSize: "0.875rem",
           color: "var(--text)",
         }}>
+          {ingestResult.cleared !== undefined && (
+            <span>Cleared {ingestResult.cleared} old draft{ingestResult.cleared !== 1 ? "s" : ""}. </span>
+          )}
           <strong>{ingestResult.created} draft{ingestResult.created !== 1 ? "s" : ""} created</strong>,{" "}
           {ingestResult.skipped} skipped (duplicates)
-          {ingestResult.repos.length > 0 && (
+          {ingestResult.sources && ingestResult.sources.length > 0 && (
+            <span style={{ color: "var(--muted)", marginLeft: 8 }}>
+              — Sources: {ingestResult.sources.join(", ")}
+            </span>
+          )}
+          {!ingestResult.sources && ingestResult.repos.length > 0 && (
             <span style={{ color: "var(--muted)", marginLeft: 8 }}>
               — {ingestResult.repos.slice(0, 5).join(", ")}
               {ingestResult.repos.length > 5 ? ` +${ingestResult.repos.length - 5} more` : ""}
@@ -209,6 +285,13 @@ export default function AdminPinDraftsPage() {
                   alt={d.title}
                   style={{ width: "100%", aspectRatio: "16/9", objectFit: "cover", display: "block" }}
                 />
+              ) : d.video_url ? (
+                <video
+                  src={d.video_url}
+                  muted
+                  playsInline
+                  style={{ width: "100%", aspectRatio: "16/9", objectFit: "cover", display: "block" }}
+                />
               ) : (
                 <div style={{
                   width: "100%", aspectRatio: "16/9",
@@ -216,7 +299,7 @@ export default function AdminPinDraftsPage() {
                   display: "flex", alignItems: "center", justifyContent: "center",
                   color: "var(--muted)", fontSize: "0.8rem",
                 }}>
-                  No image
+                  No media
                 </div>
               )}
 
@@ -237,8 +320,9 @@ export default function AdminPinDraftsPage() {
                         padding: "2px 8px",
                         borderRadius: 9999,
                         border: "1px solid var(--border)",
-                        color: "var(--muted)",
-                        background: "var(--surface-2)",
+                        color: t === "vibecoding" ? "var(--menthe)" : "var(--muted)",
+                        background: t === "vibecoding" ? "var(--menthe-light, #e6f9f6)" : "var(--surface-2)",
+                        fontWeight: t === "vibecoding" ? 600 : 400,
                       }}>
                         {t}
                       </span>
@@ -305,6 +389,7 @@ function IngestButton({
   onClick,
   icon,
   accent = false,
+  primary = false,
 }: {
   label: string;
   loading: boolean;
@@ -312,6 +397,7 @@ function IngestButton({
   onClick: () => void;
   icon: React.ReactNode;
   accent?: boolean;
+  primary?: boolean;
 }) {
   const base: React.CSSProperties = {
     display: "flex",
@@ -327,7 +413,14 @@ function IngestButton({
     whiteSpace: "nowrap",
   };
 
-  const style: React.CSSProperties = accent
+  const style: React.CSSProperties = primary
+    ? {
+        ...base,
+        border: "none",
+        background: "var(--menthe)",
+        color: "#fff",
+      }
+    : accent
     ? {
         ...base,
         border: "1.5px solid var(--menthe)",
@@ -352,7 +445,7 @@ function IngestButton({
           >
             <path d="M21 12a9 9 0 1 1-6.219-8.56"/>
           </svg>
-          Fetching…
+          {label === "Refresh Discovery" ? "Discovering…" : "Fetching…"}
         </>
       ) : (
         <>

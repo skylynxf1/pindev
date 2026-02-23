@@ -21,7 +21,6 @@ import {
 } from '@dnd-kit/sortable'
 import { CSS } from '@dnd-kit/utilities'
 import PinCard from './PinCard'
-import { PlaceholderCard, PLACEHOLDER_HEIGHTS } from './PlaceholderCard'
 import type { Pin } from '@/types'
 
 const ITEM_STYLE: React.CSSProperties = {
@@ -195,14 +194,6 @@ export default function AdminSortableGrid({
               onEdit={onEdit}
               savedPinIds={savedPinIds}
               isDragActive={!!activeId}
-            />
-          ))}
-          {PLACEHOLDER_HEIGHTS.slice(0, cols).map((h, i) => (
-            <PlaceholderCard
-              key={`end-${i}`}
-              height={h}
-              first={i === 0}
-              onClick={onEmptyClick}
             />
           ))}
         </div>

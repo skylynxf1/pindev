@@ -17,14 +17,16 @@ interface MasonryGridProps {
   onUnsave?: (id: string) => void
   onEdit?: (updated: Pin) => void
   onAdminDelete?: (id: string) => void
+  onFeatureToggle?: (id: string, featuredUntil: string | null) => void
   isAdmin?: boolean
   allSaved?: boolean
   savedPinIds?: Set<string>
   emptyText?: string
   emptySubtext?: string
   onColsChange?: (cols: number) => void
+  likesMap?: Record<string, { likeCount: number; likedByMe: boolean }>
+  onAuthRequired?: () => void
 }
-
 
 export default function MasonryGrid({
   pins,
@@ -38,18 +40,19 @@ export default function MasonryGrid({
   onUnsave,
   onEdit,
   onAdminDelete,
+  onFeatureToggle,
   isAdmin,
   allSaved,
   savedPinIds,
   emptyText,
   emptySubtext,
   onColsChange,
+  likesMap,
+  onAuthRequired,
 }: MasonryGridProps) {
   const sentinelRef = useRef<HTMLDivElement>(null)
   const [cols, setCols] = useState(4)
 
-  // Keep refs in sync so the observer callback always reads the latest values
-  // without needing to be torn down and re-created on every state change.
   const hasMoreRef = useRef(hasMore)
   const loadingRef = useRef(loading)
   const onLoadMoreRef = useRef(onLoadMore)
@@ -57,7 +60,6 @@ export default function MasonryGrid({
   useEffect(() => { loadingRef.current = loading }, [loading])
   useEffect(() => { onLoadMoreRef.current = onLoadMore }, [onLoadMore])
 
-  // JS-driven column count — avoids Tailwind v4 responsive class issues
   useEffect(() => {
     const update = () => {
       const w = window.innerWidth
@@ -75,9 +77,6 @@ export default function MasonryGrid({
     return () => window.removeEventListener('resize', update)
   }, [])
 
-  // Stable IntersectionObserver — only mounts/unmounts with the component.
-  // Reads hasMore/loading/onLoadMore via refs so it never needs to reconnect,
-  // eliminating the "stuck scroll" caused by observer gaps during re-attachment.
   const tryLoad = useCallback(() => {
     if (hasMoreRef.current && !loadingRef.current) onLoadMoreRef.current()
   }, [])
@@ -93,8 +92,6 @@ export default function MasonryGrid({
     return () => observer.disconnect()
   }, [tryLoad])
 
-  // Re-check sentinel whenever loading finishes — covers the case where the
-  // sentinel was already in view while loading, so no new intersection fires.
   useEffect(() => {
     if (!loading) tryLoad()
   }, [loading, tryLoad])
@@ -102,12 +99,20 @@ export default function MasonryGrid({
   const gridStyle: React.CSSProperties = { columns: cols, columnGap: 16 }
   const itemStyle: React.CSSProperties = { marginBottom: 16, breakInside: 'avoid', pageBreakInside: 'avoid' }
 
-  // Empty state
+  // Empty state — blank placeholders first, "add yours" card last
   if (!loading && pins.length === 0) {
+    const lastIdx = PLACEHOLDER_HEIGHTS.length - 1
     return (
       <div style={gridStyle}>
         {PLACEHOLDER_HEIGHTS.map((h, i) => (
-          <PlaceholderCard key={i} height={h} first={i === 0} onClick={onEmptyClick} emptyText={emptyText} emptySubtext={emptySubtext} />
+          <PlaceholderCard
+            key={i}
+            height={h}
+            first={i === lastIdx}
+            onClick={onEmptyClick}
+            emptyText={emptyText}
+            emptySubtext={emptySubtext}
+          />
         ))}
       </div>
     )
@@ -126,22 +131,14 @@ export default function MasonryGrid({
               onUnsave={onUnsave}
               onEdit={onEdit}
               onAdminDelete={onAdminDelete}
+              onFeatureToggle={onFeatureToggle}
               isAdmin={isAdmin}
               initialSaved={allSaved ?? savedPinIds?.has(pin.id)}
+              initialLikeCount={likesMap?.[pin.id]?.likeCount}
+              initialLikedByMe={likesMap?.[pin.id]?.likedByMe}
+              onAuthRequired={onAuthRequired}
             />
           </div>
-        ))}
-
-        {/* End-of-feed placeholders — flow into shortest columns so they appear at the bottom */}
-        {!hasMore && pins.length > 0 && PLACEHOLDER_HEIGHTS.slice(0, cols).map((h, i) => (
-          <PlaceholderCard
-            key={`end-${i}`}
-            height={h}
-            first={i === 0}
-            onClick={onEmptyClick}
-            emptyText={emptyText}
-            emptySubtext={emptySubtext}
-          />
         ))}
       </div>
 
@@ -164,6 +161,34 @@ export default function MasonryGrid({
               className="animate-pulse"
             />
           ))}
+        </div>
+      )}
+
+      {/* End of feed — simple marker, no placeholder cards that break the column layout */}
+      {!hasMore && !loading && pins.length > 0 && (
+        <div style={{
+          display: 'flex',
+          alignItems: 'center',
+          gap: 16,
+          margin: '32px 0 16px',
+          color: 'var(--muted)',
+        }}>
+          <div style={{ flex: 1, height: 1, background: 'var(--border)' }} />
+          <span
+            onClick={onEmptyClick}
+            style={{
+              fontSize: '0.8125rem',
+              fontWeight: 600,
+              color: 'var(--menthe)',
+              cursor: 'pointer',
+              whiteSpace: 'nowrap',
+            }}
+            onMouseEnter={e => { (e.currentTarget as HTMLElement).style.textDecoration = 'underline' }}
+            onMouseLeave={e => { (e.currentTarget as HTMLElement).style.textDecoration = 'none' }}
+          >
+            + add yours
+          </span>
+          <div style={{ flex: 1, height: 1, background: 'var(--border)' }} />
         </div>
       )}
     </div>

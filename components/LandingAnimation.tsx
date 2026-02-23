@@ -49,8 +49,8 @@ export default function LandingAnimation() {
         }
 
         @keyframes la-cursor-blink {
-          0%, 100% { border-color: rgba(255,255,255,0.9); }
-          50%      { border-color: transparent; }
+          0%, 100% { opacity: 1; }
+          50%      { opacity: 0; }
         }
 
         @keyframes la-tagline-in {
@@ -85,6 +85,12 @@ export default function LandingAnimation() {
           animation: la-squeeze-exit 1.0s cubic-bezier(.4,0,.2,1) forwards;
         }
 
+        .la-wordmark-wrap {
+          display: inline-flex;
+          align-items: center;
+          line-height: 1;
+        }
+
         .la-wordmark {
           font-family: var(--font-sans);
           font-weight: 800;
@@ -95,10 +101,17 @@ export default function LandingAnimation() {
           white-space: nowrap;
           overflow: hidden;
           width: 0;
-          border-right: 4px solid rgba(255,255,255,0.9);
-          animation:
-            la-type 0.5s steps(6, end) 0.05s forwards,
-            la-cursor-blink 0.45s step-end 0.05s 4;
+          animation: la-type 0.5s steps(6, end) 0.05s forwards;
+        }
+
+        .la-cursor {
+          display: inline-block;
+          width: 4px;
+          height: 0.82em;
+          background: rgba(255,255,255,0.9);
+          border-radius: 1px;
+          flex-shrink: 0;
+          animation: la-cursor-blink 0.45s step-end 0.05s 4;
         }
 
         .la-tagline {
@@ -117,7 +130,10 @@ export default function LandingAnimation() {
       <div className={`la-overlay ${phase === 'fill' ? 'fill' : phase === 'exit' ? 'exit' : ''}`}>
         {(phase === 'text' || phase === 'exit') && (
           <>
-            <div className="la-wordmark">pindev</div>
+            <div className="la-wordmark-wrap">
+              <div className="la-wordmark">pindev</div>
+              <div className="la-cursor" aria-hidden="true" />
+            </div>
             <div className="la-tagline">playground for creators</div>
           </>
         )}

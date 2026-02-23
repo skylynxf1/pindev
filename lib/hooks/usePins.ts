@@ -31,16 +31,16 @@ export function usePins(options?: { initialPins?: Pin[] }) {
         .select(`
           id, owner_id, title, description, live_url, repo_url,
           media_url, media_type, thumbnail_url, is_published,
-          sort_index, created_at, updated_at,
+          sort_index, featured_until, created_at, updated_at,
           profiles ( username, display_name, avatar_url ),
           pin_tags ( tags ( id, name ) )
         `)
         .eq('is_published', true)
-        .order('sort_index', { ascending: true, nullsFirst: false })
+        .order('sort_index', { ascending: true, nullsFirst: true })
         .order('created_at', { ascending: false })
         .range(from, to)
 
-      if (sbError) throw new Error('Failed to load pins.')
+      if (sbError) throw new Error(sbError.message ?? 'Failed to load pins.')
 
       const rows = (data ?? []).map((row: Record<string, unknown>) => ({
         id: row.id as string,
@@ -54,6 +54,7 @@ export function usePins(options?: { initialPins?: Pin[] }) {
         thumbnail_url: row.thumbnail_url as string,
         is_published: row.is_published as boolean,
         sort_index: row.sort_index as number | null,
+        featured_until: row.featured_until as string | null,
         created_at: row.created_at as string,
         updated_at: row.updated_at as string,
         profile: Array.isArray(row.profiles)

@@ -7,6 +7,7 @@ import type { Pin, Tag } from '@/types'
    CATEGORY OPTIONS
    ───────────────────────────────────────────────────────────── */
 const CATEGORY_OPTIONS = [
+  { id: 'design',     label: 'Design' },
   { id: 'website',    label: 'Website' },
   { id: 'app',        label: 'App' },
   { id: 'ai-tool',    label: 'AI Tool' },
@@ -267,7 +268,7 @@ export default function EditPinModal({ pin, onClose, onSaved }: EditPinModalProp
                       setSelectedTags(prev =>
                         prev.includes(id)
                           ? prev.filter(t => t !== id)
-                          : prev.length < 4 ? [...prev, id] : prev
+                          : [...prev, id]
                       )
                     }
                     style={{

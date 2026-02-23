@@ -5,6 +5,7 @@ import Image from 'next/image'
 import Link from 'next/link'
 import { createClient } from '@/lib/supabase/client'
 import PinCard from '@/components/feed/PinCard'
+import LikeButton from '@/components/feed/LikeButton'
 import type { Pin, Tag } from '@/types'
 
 /* ── Category helpers (same mapping as PinCard) ── */
@@ -392,8 +393,8 @@ export default function PinDetailView({
             </Link>
           )}
 
-          {/* Action buttons: Visit Live + Repo */}
-          <div style={{ display: 'flex', gap: 10, flexWrap: 'wrap' }}>
+          {/* Action buttons: Visit Live + Repo + Like */}
+          <div style={{ display: 'flex', gap: 10, flexWrap: 'wrap', alignItems: 'center' }}>
             <a href={pin.live_url} target="_blank" rel="noopener noreferrer"
               style={{ flex: 1, minWidth: 120, display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 6, padding: '11px 16px', borderRadius: 14, background: 'var(--menthe)', color: '#fff', fontSize: '0.9375rem', fontWeight: 700, textDecoration: 'none', transition: 'opacity 150ms' }}
               onMouseEnter={(e) => { e.currentTarget.style.opacity = '0.85' }}
@@ -406,6 +407,11 @@ export default function PinDetailView({
               </svg>
               Visit Live
             </a>
+            <LikeButton
+              pinId={pin.id}
+              currentUserId={userId ?? undefined}
+              onAuthRequired={() => { window.location.href = '/login' }}
+            />
             {pin.repo_url && (
               <a href={pin.repo_url} target="_blank" rel="noopener noreferrer"
                 style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 6, padding: '11px 16px', borderRadius: 14, border: '1.5px solid var(--border)', background: 'transparent', color: 'var(--text)', fontSize: '0.9375rem', fontWeight: 600, textDecoration: 'none', transition: 'border-color 150ms, background 150ms' }}

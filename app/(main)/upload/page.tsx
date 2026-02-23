@@ -432,7 +432,7 @@ export default function UploadPage() {
       setAgreedToRules(true)
 
       // Restore category tag selections
-      const CATEGORY_IDS = ['website', 'app', 'ai-tool', 'vibecoding']
+      const CATEGORY_IDS = ['design', 'website', 'app', 'ai-tool', 'vibecoding']
       // eslint-disable-next-line @typescript-eslint/no-explicit-any
       const tagNames = (pin.pin_tags ?? []).map((pt: any) => pt.tags?.name).filter(Boolean) as string[]
       setSelectedTags(tagNames.filter(t => CATEGORY_IDS.includes(t)))
@@ -875,10 +875,11 @@ export default function UploadPage() {
                   Category
                 </SectionLabel>
                 <p style={{ fontSize: '0.75rem', color: 'var(--muted)', margin: '0 0 10px' }}>
-                  Select up to 4 that apply
+                  Select all that apply
                 </p>
                 <div style={{ display: 'flex', flexDirection: 'column', gap: 8 }}>
                   {([
+                    { id: 'design',     label: 'Design',      icon: <><path d="M12 20h9"/><path d="M16.5 3.5a2.121 2.121 0 0 1 3 3L7 19l-4 1 1-4L16.5 3.5z"/></> },
                     { id: 'website',    label: 'Websites',    icon: <><rect x="2" y="3" width="20" height="14" rx="2"/><path d="M8 21h8M12 17v4"/></> },
                     { id: 'app',        label: 'Apps',        icon: <><rect x="5" y="2" width="14" height="20" rx="2"/><line x1="12" y1="18" x2="12.01" y2="18"/></> },
                     { id: 'ai-tool',    label: 'AI Tools',    icon: <><polygon points="12 2 2 7 12 12 22 7 12 2"/><polyline points="2 17 12 22 22 17"/><polyline points="2 12 12 17 22 12"/></> },
@@ -893,7 +894,7 @@ export default function UploadPage() {
                           setSelectedTags(prev =>
                             prev.includes(id)
                               ? prev.filter(t => t !== id)
-                              : prev.length < 4 ? [...prev, id] : prev
+                              : [...prev, id]
                           )
                         }}
                         style={{

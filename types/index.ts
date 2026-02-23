@@ -20,6 +20,7 @@ export type Pin = {
   thumbnail_url: string
   is_published: boolean
   sort_index?: number | null
+  featured_until?: string | null
   created_at: string
   updated_at: string
   // joined

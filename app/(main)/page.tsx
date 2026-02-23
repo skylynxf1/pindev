@@ -6,25 +6,17 @@ import Link from 'next/link'
 import LandingAnimation from '@/components/LandingAnimation'
 import MasonryGrid from '@/components/feed/MasonryGrid'
 import AdminSortableGrid from '@/components/feed/AdminSortableGrid'
-import CategoryFilterBar, { type CategoryId } from '@/components/feed/CategoryFilterBar'
+import CategoryFilterBar, { type CategoryId, type SortOrder } from '@/components/feed/CategoryFilterBar'
 import { usePins } from '@/lib/hooks/usePins'
 import { createClient } from '@/lib/supabase/client'
 import type { Pin } from '@/types'
 
 const CATEGORY_TAG_MAP: Record<string, string> = {
+  design: 'design', ui: 'design', ux: 'design',
   website: 'website', web: 'website', landing: 'website',
   app: 'app', mobile: 'app', ios: 'app', android: 'app',
   'ai-tool': 'ai-tool', ai: 'ai-tool', ml: 'ai-tool', llm: 'ai-tool',
   vibecoding: 'vibecoding', 'vibe-coding': 'vibecoding', vibe: 'vibecoding',
-}
-
-function getPinCategory(pin: Pin): string | null {
-  if (!pin.tags?.length) return null
-  for (const tag of pin.tags) {
-    const match = CATEGORY_TAG_MAP[tag.name.toLowerCase()]
-    if (match) return match
-  }
-  return null
 }
 
 /* ─────────────────────────────────────────────────────────────
@@ -132,6 +124,7 @@ export default function HomePage() {
   const router = useRouter()
   const { pins, loading, hasMore, error, fetchNextPage, removePin, updatePin, reorderPins } = usePins()
   const [activeCategory, setActiveCategory] = useState<CategoryId>('all')
+  const [sortOrder, setSortOrder] = useState<SortOrder>('latest')
   const [authReady, setAuthReady] = useState(false)
   const [isLoggedIn, setIsLoggedIn] = useState(false)
   const [currentUserId, setCurrentUserId] = useState<string | undefined>(undefined)
@@ -140,6 +133,17 @@ export default function HomePage() {
   const [isAdmin, setIsAdmin] = useState(false)
   const [reorderMode, setReorderMode] = useState(false)
   const [gridCols, setGridCols] = useState(4)
+  const [likesMap, setLikesMap] = useState<Record<string, { likeCount: number; likedByMe: boolean }>>({})
+
+  // Batch-fetch likes whenever the pin list grows (one request per page of pins)
+  useEffect(() => {
+    if (pins.length === 0) return
+    const ids = pins.map(p => p.id).join(',')
+    fetch(`/api/pins/likes?ids=${ids}`)
+      .then(r => r.ok ? r.json() : {})
+      .then(data => setLikesMap(prev => ({ ...prev, ...data })))
+      .catch(() => {})
+  }, [pins])
 
   const handleAdminDelete = useCallback((id: string) => removePin(id), [removePin])
 
@@ -160,6 +164,11 @@ export default function HomePage() {
     }
   }, [isLoggedIn, router])
 
+  const handleFeatureToggle = useCallback((id: string, featuredUntil: string | null) => {
+    const pin = pins.find(p => p.id === id)
+    if (pin) updatePin({ ...pin, featured_until: featuredUntil })
+  }, [pins, updatePin])
+
   useEffect(() => {
     const supabase = createClient()
     supabase.auth.getUser().then(({ data }) => {
@@ -178,16 +187,37 @@ export default function HomePage() {
     })
   }, [])
 
+  /* Multi-tag filtering: a pin shows under a category if ANY of its tags maps
+     to that category. Featured filters by featured_until > now(). */
   const filteredPins = useMemo(() => {
-    if (activeCategory === 'all') return pins
-    return pins.filter(pin => getPinCategory(pin) === activeCategory)
-  }, [pins, activeCategory])
+    let result: Pin[]
+
+    if (activeCategory === 'all') {
+      result = pins
+    } else if (activeCategory === 'featured') {
+      const now = new Date()
+      result = pins.filter(p => p.featured_until && new Date(p.featured_until) > now)
+    } else {
+      result = pins.filter(pin =>
+        pin.tags?.some(tag => CATEGORY_TAG_MAP[tag.name.toLowerCase()] === activeCategory)
+      )
+    }
+
+    if (sortOrder === 'oldest') {
+      result = [...result].sort((a, b) =>
+        new Date(a.created_at).getTime() - new Date(b.created_at).getTime()
+      )
+    }
+
+    return result
+  }, [pins, activeCategory, sortOrder])
 
   const showAuthModal = authReady && !isLoggedIn && !authModalDismissed
 
   return (
     <main style={{ minHeight: '100vh', background: 'var(--bg)' }}>
       <LandingAnimation />
+
       {/* Sticky filter bar */}
       <div
         style={{
@@ -200,7 +230,12 @@ export default function HomePage() {
         }}
       >
         <div style={{ maxWidth: 1800, margin: '0 auto', padding: '0 24px' }}>
-          <CategoryFilterBar active={activeCategory} onChange={setActiveCategory} />
+          <CategoryFilterBar
+            active={activeCategory}
+            onChange={setActiveCategory}
+            sortOrder={sortOrder}
+            onSortChange={setSortOrder}
+          />
         </div>
       </div>
 
@@ -259,7 +294,7 @@ export default function HomePage() {
         ) : (
           <MasonryGrid
             pins={filteredPins}
-            hasMore={hasMore}
+            hasMore={hasMore && activeCategory === 'all'}
             loading={loading}
             onLoadMore={fetchNextPage}
             onSave={() => setAuthModalDismissed(false)}
@@ -268,9 +303,12 @@ export default function HomePage() {
             onDelete={removePin}
             onEdit={updatePin}
             onAdminDelete={handleAdminDelete}
+            onFeatureToggle={handleFeatureToggle}
             isAdmin={isAdmin}
             savedPinIds={savedPinIds}
             onColsChange={setGridCols}
+            likesMap={likesMap}
+            onAuthRequired={() => setAuthModalDismissed(false)}
           />
         )}
       </div>
