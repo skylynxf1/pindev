@@ -68,7 +68,8 @@ export default function MasonryGrid({
       else if (w < 900) c = 2
       else if (w < 1200) c = 3
       else if (w < 1500) c = 4
-      else c = 5
+      else if (w < 1800) c = 5
+      else c = 6
       setCols(c)
       onColsChange?.(c)
     }
@@ -96,8 +97,14 @@ export default function MasonryGrid({
     if (!loading) tryLoad()
   }, [loading, tryLoad])
 
+  // Subtle spacing pattern — alternates between 14/18/16px for organic rhythm
+  const SPACING = [14, 18, 16, 20, 14, 16, 18, 14]
   const gridStyle: React.CSSProperties = { columns: cols, columnGap: 16 }
-  const itemStyle: React.CSSProperties = { marginBottom: 16, breakInside: 'avoid', pageBreakInside: 'avoid' }
+  const getItemStyle = (i: number): React.CSSProperties => ({
+    marginBottom: SPACING[i % SPACING.length],
+    breakInside: 'avoid',
+    pageBreakInside: 'avoid',
+  })
 
   // Empty state — blank placeholders first, "add yours" card last
   if (!loading && pins.length === 0) {
@@ -121,8 +128,8 @@ export default function MasonryGrid({
   return (
     <div>
       <div style={gridStyle}>
-        {pins.map((pin) => (
-          <div key={pin.id} data-pin-item style={itemStyle}>
+        {pins.map((pin, i) => (
+          <div key={pin.id} data-pin-item style={getItemStyle(i)}>
             <PinCard
               pin={pin}
               onSave={onSave}
@@ -152,7 +159,7 @@ export default function MasonryGrid({
             <div
               key={i}
               style={{
-                ...itemStyle,
+                ...getItemStyle(i),
                 height: PLACEHOLDER_HEIGHTS[i % PLACEHOLDER_HEIGHTS.length],
                 borderRadius: 18,
                 background: 'var(--menthe-light)',

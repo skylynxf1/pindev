@@ -279,10 +279,10 @@ export default memo(function PinCard({ pin: initialPin, onSave, currentUserId, o
           style={{
             position: 'relative',
             width: '100%',
-            aspectRatio: '4/3',
             background: 'var(--brume)',
             borderRadius: '18px 18px 0 0',
             overflow: 'hidden',
+            lineHeight: 0,
           }}
         >
           {pin.media_type === 'video' ? (
@@ -291,9 +291,10 @@ export default memo(function PinCard({ pin: initialPin, onSave, currentUserId, o
             <Image
               src={pin.thumbnail_url}
               alt={pin.title || 'Project preview'}
-              fill
+              width={800}
+              height={600}
               sizes="(max-width: 640px) 100vw, (max-width: 1200px) 50vw, 25vw"
-              style={{ objectFit: 'cover', objectPosition: 'center' }}
+              style={{ width: '100%', height: 'auto', display: 'block' }}
               unoptimized
             />
           )}
