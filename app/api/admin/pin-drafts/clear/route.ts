@@ -37,10 +37,11 @@ export async function POST(req: Request) {
       .filter(Boolean)
       .map((url) => ({ source_url: url }));
 
-    await supabase
+    // eslint-disable-next-line @typescript-eslint/no-unused-vars
+    const { error: _upsertErr } = await supabase
       .from("ingested_sources")
-      .upsert(rows, { onConflict: "source_url", ignoreDuplicates: true })
-      .catch(() => {}); // Graceful if table doesn't exist yet
+      .upsert(rows, { onConflict: "source_url", ignoreDuplicates: true });
+    // Intentionally ignore — table may not exist yet
   }
 
   // ── Delete all PENDING drafts ─────────────────────────────────────────────

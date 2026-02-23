@@ -520,10 +520,11 @@ async function runDiscovery(): Promise<Response> {
 
   // Batch-record in ingested_sources (permanent — survives draft deletion)
   if (newItems.length > 0) {
-    await supabase
+    // eslint-disable-next-line @typescript-eslint/no-unused-vars
+    const { error: _ingestErr } = await supabase
       .from("ingested_sources")
-      .insert(newItems.map((item) => ({ source_url: item.source_url })))
-      .catch(() => {});
+      .insert(newItems.map((item) => ({ source_url: item.source_url })));
+    // Intentionally ignore — table may not exist yet
   }
 
   // Insert drafts
