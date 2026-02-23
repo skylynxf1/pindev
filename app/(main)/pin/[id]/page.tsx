@@ -1,5 +1,6 @@
 import { notFound } from 'next/navigation'
 import { createClient } from '@/lib/supabase/server'
+import { getSimilarPins } from '@/lib/db/queries'
 import PinPageClient from '@/components/pin/PinPageClient'
 import type { Pin } from '@/types'
 import type { Metadata } from 'next'
@@ -74,5 +75,16 @@ export default async function PinPage({ params }: Props) {
 
   if (!pin) notFound()
 
-  return <PinPageClient pin={pin} />
+  // Fetch similar pins server-side for faster initial render
+  const supabase = await createClient()
+  const tagNames = pin.tags?.map((t) => t.name) ?? []
+  const { data: rawSimilar } = await getSimilarPins(supabase, id, tagNames, 12)
+
+  // Map DbPinWithRelations → Pin (null profile → undefined)
+  const similarPins: Pin[] = (rawSimilar ?? []).map((r) => ({
+    ...r,
+    profile: r.profile ?? undefined,
+  }))
+
+  return <PinPageClient pin={pin} similarPins={similarPins} />
 }

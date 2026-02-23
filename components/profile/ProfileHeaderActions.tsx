@@ -21,15 +21,29 @@ export default function ProfileHeaderActions({
   pinCount,
   boardCount,
   followerCount: initialFollowerCount,
-  followingCount,
+  followingCount: initialFollowingCount,
   isOwnProfile,
   initialIsFollowing,
   currentUserId,
 }: Props) {
   const [isFollowing, setIsFollowing] = useState(initialIsFollowing)
   const [followerCount, setFollowerCount] = useState(initialFollowerCount)
+  const [followingCount, setFollowingCount] = useState(initialFollowingCount)
   const [loading, setLoading] = useState(false)
   const [activeModal, setActiveModal] = useState<'followers' | 'following' | null>(null)
+
+  async function refreshCounts() {
+    try {
+      const res = await fetch(`/api/follow/${profile.username}`)
+      if (res.ok) {
+        const data = await res.json()
+        setFollowerCount(data.follower_count)
+        setFollowingCount(data.following_count)
+      }
+    } catch {
+      // ignore
+    }
+  }
 
   async function handleFollowToggle() {
     if (loading) return
@@ -222,7 +236,14 @@ export default function ProfileHeaderActions({
           type={activeModal}
           username={profile.username}
           isOwnProfile={isOwnProfile}
-          onClose={() => setActiveModal(null)}
+          currentUserId={currentUserId}
+          onClose={() => {
+            setActiveModal(null)
+            refreshCounts()
+          }}
+          onFollowChange={(delta) => {
+            setFollowingCount(prev => prev + delta)
+          }}
         />
       )}
     </>

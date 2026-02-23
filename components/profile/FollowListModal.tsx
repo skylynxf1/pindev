@@ -10,13 +10,16 @@ interface Props {
   type: 'followers' | 'following'
   username: string
   isOwnProfile: boolean
+  currentUserId: string | null
   onClose: () => void
+  onFollowChange?: (delta: number) => void
 }
 
-export default function FollowListModal({ type, username, isOwnProfile, onClose }: Props) {
+export default function FollowListModal({ type, username, isOwnProfile, currentUserId, onClose, onFollowChange }: Props) {
   const [users, setUsers] = useState<FollowUser[]>([])
   const [loading, setLoading] = useState(true)
   const [actionLoading, setActionLoading] = useState<string | null>(null)
+  const [followedIds, setFollowedIds] = useState<Set<string>>(new Set())
 
   const fetchUsers = useCallback(async () => {
     setLoading(true)
@@ -27,7 +30,11 @@ export default function FollowListModal({ type, username, isOwnProfile, onClose 
       const res = await fetch(endpoint)
       if (res.ok) {
         const data = await res.json()
-        setUsers(data.users ?? [])
+        const fetchedUsers = data.users ?? []
+        setUsers(fetchedUsers)
+        setFollowedIds(new Set(
+          fetchedUsers.filter((u: FollowUser) => u.is_followed_by_me).map((u: FollowUser) => u.id)
+        ))
       }
     } finally {
       setLoading(false)
@@ -66,12 +73,23 @@ export default function FollowListModal({ type, username, isOwnProfile, onClose 
     }
   }
 
-  async function handleBlock(targetUsername: string) {
+  async function handleFollow(targetUsername: string, targetId: string) {
     setActionLoading(targetUsername)
     try {
-      const res = await fetch(`/api/block/${targetUsername}`, { method: 'POST' })
+      const isCurrentlyFollowed = followedIds.has(targetId)
+      const method = isCurrentlyFollowed ? 'DELETE' : 'POST'
+      const res = await fetch(`/api/follow/${targetUsername}`, { method })
       if (res.ok) {
-        setUsers(prev => prev.filter(u => u.username !== targetUsername))
+        setFollowedIds(prev => {
+          const next = new Set(prev)
+          if (isCurrentlyFollowed) {
+            next.delete(targetId)
+          } else {
+            next.add(targetId)
+          }
+          return next
+        })
+        onFollowChange?.(isCurrentlyFollowed ? -1 : 1)
       }
     } finally {
       setActionLoading(null)
@@ -133,10 +151,12 @@ export default function FollowListModal({ type, username, isOwnProfile, onClose 
                 user={user}
                 type={type}
                 isOwnProfile={isOwnProfile}
+                currentUserId={currentUserId}
+                isFollowedByMe={followedIds.has(user.id)}
                 isActing={actionLoading === user.username}
                 onRemoveFollower={handleRemoveFollower}
                 onUnfollow={handleUnfollow}
-                onBlock={handleBlock}
+                onFollow={handleFollow}
               />
             ))
           )}
@@ -150,13 +170,15 @@ interface UserRowProps {
   user: FollowUser
   type: 'followers' | 'following'
   isOwnProfile: boolean
+  currentUserId: string | null
+  isFollowedByMe: boolean
   isActing: boolean
   onRemoveFollower: (username: string) => void
   onUnfollow: (username: string) => void
-  onBlock: (username: string) => void
+  onFollow: (username: string, id: string) => void
 }
 
-function UserRow({ user, type, isOwnProfile, isActing, onRemoveFollower, onUnfollow, onBlock }: UserRowProps) {
+function UserRow({ user, type, isOwnProfile, currentUserId, isFollowedByMe, isActing, onRemoveFollower, onUnfollow, onFollow }: UserRowProps) {
   const displayName = user.display_name || user.username
   const initial = displayName.charAt(0).toUpperCase()
 
@@ -174,11 +196,21 @@ function UserRow({ user, type, isOwnProfile, isActing, onRemoveFollower, onUnfol
     whiteSpace: 'nowrap',
   }
 
-  const dangerBtnStyle: React.CSSProperties = {
+  const followingBtnStyle: React.CSSProperties = {
     ...actionBtnStyle,
-    color: '#e53e3e',
-    borderColor: '#fed7d7',
+    background: 'var(--menthe)',
+    color: '#fff',
+    border: '1px solid var(--menthe)',
   }
+
+  const followBtnStyle: React.CSSProperties = {
+    ...actionBtnStyle,
+    background: 'none',
+    color: 'var(--text)',
+    border: '1px solid var(--border)',
+  }
+
+  const isCurrentUser = currentUserId !== null && user.id === currentUserId
 
   return (
     <div style={{
@@ -218,10 +250,63 @@ function UserRow({ user, type, isOwnProfile, isActing, onRemoveFollower, onUnfol
         <span style={{ fontSize: '0.75rem', color: 'var(--muted)' }}>@{user.username}</span>
       </Link>
 
-      {/* Actions (own profile only) */}
-      {isOwnProfile && (
+      {/* Actions */}
+      {!isCurrentUser && currentUserId !== null && (
         <div style={{ display: 'flex', gap: 6, flexShrink: 0 }}>
+          {/* Follow state button — shown in followers list (own or other profile) */}
           {type === 'followers' && (
+            isFollowedByMe ? (
+              <button
+                onClick={() => onFollow(user.username, user.id)}
+                disabled={isActing}
+                style={followingBtnStyle}
+              >
+                <span style={{ display: 'inline-flex', alignItems: 'center', gap: 4 }}>
+                  <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="3" strokeLinecap="round" strokeLinejoin="round">
+                    <polyline points="20 6 9 17 4 12"/>
+                  </svg>
+                  Following
+                </span>
+              </button>
+            ) : (
+              <button
+                onClick={() => onFollow(user.username, user.id)}
+                disabled={isActing}
+                style={followBtnStyle}
+              >
+                Follow back
+              </button>
+            )
+          )}
+
+          {/* Follow state button — shown in following list (other profiles only) */}
+          {type === 'following' && !isOwnProfile && (
+            isFollowedByMe ? (
+              <button
+                onClick={() => onFollow(user.username, user.id)}
+                disabled={isActing}
+                style={followingBtnStyle}
+              >
+                <span style={{ display: 'inline-flex', alignItems: 'center', gap: 4 }}>
+                  <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="3" strokeLinecap="round" strokeLinejoin="round">
+                    <polyline points="20 6 9 17 4 12"/>
+                  </svg>
+                  Following
+                </span>
+              </button>
+            ) : (
+              <button
+                onClick={() => onFollow(user.username, user.id)}
+                disabled={isActing}
+                style={followBtnStyle}
+              >
+                Follow
+              </button>
+            )
+          )}
+
+          {/* Own-profile management buttons */}
+          {isOwnProfile && type === 'followers' && (
             <button
               onClick={() => onRemoveFollower(user.username)}
               disabled={isActing}
@@ -230,7 +315,7 @@ function UserRow({ user, type, isOwnProfile, isActing, onRemoveFollower, onUnfol
               Remove
             </button>
           )}
-          {type === 'following' && (
+          {isOwnProfile && type === 'following' && (
             <button
               onClick={() => onUnfollow(user.username)}
               disabled={isActing}
@@ -239,13 +324,6 @@ function UserRow({ user, type, isOwnProfile, isActing, onRemoveFollower, onUnfol
               Unfollow
             </button>
           )}
-          <button
-            onClick={() => onBlock(user.username)}
-            disabled={isActing}
-            style={dangerBtnStyle}
-          >
-            Block
-          </button>
         </div>
       )}
     </div>

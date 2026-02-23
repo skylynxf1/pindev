@@ -263,3 +263,87 @@ export async function getProfilePins(
     }
   }
 }
+
+// ── getSimilarPins ───────────────────────────────────────────────────────────
+/**
+ * Returns pins similar to the given pin based on shared tags.
+ * Falls back to recent pins if no tag matches are found.
+ */
+export async function getSimilarPins(
+  supabase: SupabaseClient,
+  pinId: string,
+  tagNames: string[],
+  limit = 12
+): Promise<QueryResult<DbPinWithRelations[]>> {
+  try {
+    // Strategy 1: Find pins sharing tags with current pin
+    if (tagNames.length > 0) {
+      const { data: tagRows } = await supabase
+        .from('tags')
+        .select('id')
+        .in('name', tagNames)
+
+      const tagIds = (tagRows ?? []).map(
+        (t: Record<string, unknown>) => t.id as string
+      )
+
+      if (tagIds.length > 0) {
+        const { data: pinTagRows } = await supabase
+          .from('pin_tags')
+          .select('pin_id')
+          .in('tag_id', tagIds)
+
+        const candidateIds = [
+          ...new Set(
+            (pinTagRows ?? []).map(
+              (pt: Record<string, unknown>) => pt.pin_id as string
+            )
+          ),
+        ].filter((id) => id !== pinId)
+
+        if (candidateIds.length > 0) {
+          const { data, error } = await supabase
+            .from('pins')
+            .select(PIN_SELECT)
+            .in('id', candidateIds.slice(0, limit * 2))
+            .eq('is_published', true)
+            .order('created_at', { ascending: false })
+            .limit(limit)
+
+          if (!error && data && data.length >= 4) {
+            return {
+              data: (data as unknown as Record<string, unknown>[]).map(
+                normalisePin
+              ),
+              error: null,
+            }
+          }
+          // If fewer than 4 tag-matched pins, fall through to recent
+        }
+      }
+    }
+
+    // Strategy 2 (fallback): Recent published pins excluding the current one
+    const { data, error } = await supabase
+      .from('pins')
+      .select(PIN_SELECT)
+      .eq('is_published', true)
+      .neq('id', pinId)
+      .order('created_at', { ascending: false })
+      .limit(limit)
+
+    if (error) throw new Error(error.message)
+
+    return {
+      data: ((data ?? []) as unknown as Record<string, unknown>[]).map(
+        normalisePin
+      ),
+      error: null,
+    }
+  } catch (err) {
+    return {
+      data: null,
+      error: err instanceof Error ? err.message : 'Failed to load similar pins',
+    }
+  }
+}

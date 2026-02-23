@@ -3,6 +3,7 @@
 import { useState, useEffect, useRef } from 'react'
 import Image from 'next/image'
 import Link from 'next/link'
+import { useRouter } from 'next/navigation'
 import type { Pin, Tag } from '@/types'
 import EditPinModal from './EditPinModal'
 
@@ -108,7 +109,8 @@ function VideoPreview({ src, poster }: { src: string; poster: string }) {
 }
 
 /* ─────────────────────────────────────────────────────────────
-   PIN CARD
+   PIN CARD — Static grid card (no flip).
+   Clicking the card opens the Pin Detail View.
    ───────────────────────────────────────────────────────────── */
 interface PinCardProps {
   pin: Pin
@@ -123,8 +125,8 @@ interface PinCardProps {
 }
 
 export default function PinCard({ pin: initialPin, onSave, currentUserId, onDelete, onUnsave, onEdit, onAdminDelete, isAdmin, initialSaved }: PinCardProps) {
+  const router = useRouter()
   const [pin, setPin] = useState(initialPin)
-  const [flipped, setFlipped] = useState(false)
   const [hovered, setHovered] = useState(false)
   const [confirmDelete, setConfirmDelete] = useState(false)
   const [deleting, setDeleting] = useState(false)
@@ -144,6 +146,10 @@ export default function PinCard({ pin: initialPin, onSave, currentUserId, onDele
   useEffect(() => {
     setSaved(initialSaved ?? false)
   }, [initialSaved])
+
+  function handleCardClick() {
+    router.push(`/pin/${pin.id}`)
+  }
 
   async function handleSaveClick(e: React.MouseEvent) {
     e.stopPropagation()
@@ -221,10 +227,10 @@ export default function PinCard({ pin: initialPin, onSave, currentUserId, onDele
   }
 
   return (
-    /* Perspective wrapper — required for proper 3D depth */
-    <div style={{ perspective: '1000px' }}>
-      {/* Rotating card */}
+    <div>
+      {/* Card — clicking anywhere (except buttons/links) opens detail view */}
       <div
+        onClick={handleCardClick}
         onMouseEnter={() => setHovered(true)}
         onMouseLeave={() => setHovered(false)}
         style={{
@@ -233,511 +239,291 @@ export default function PinCard({ pin: initialPin, onSave, currentUserId, onDele
           border: '1px solid var(--border)',
           background: '#fff',
           boxShadow: hovered ? '0 8px 24px rgba(0,0,0,0.10)' : '0 1px 4px rgba(0,0,0,0.04)',
-          transformStyle: 'preserve-3d',
-          transform: flipped ? 'rotateY(180deg)' : 'rotateY(0deg)',
-          transition: 'transform 0.45s ease, box-shadow 200ms',
+          transition: 'box-shadow 200ms',
+          cursor: 'pointer',
         }}
       >
-        {/* ── FRONT FACE ── */}
-        <div style={{ backfaceVisibility: 'hidden', WebkitBackfaceVisibility: 'hidden', borderRadius: 18 }}>
-          {/* Thumbnail — click flips the card */}
-          <div
-            style={{
-              position: 'relative',
-              width: '100%',
-              background: 'var(--brume)',
-              minHeight: '180px',
-              borderRadius: '18px 18px 0 0',
-              overflow: 'hidden',
-              cursor: 'pointer',
-            }}
-            onClick={() => setFlipped(true)}
-          >
-            {pin.media_type === 'video' ? (
-              <VideoPreview src={pin.media_url} poster={pin.thumbnail_url} />
-            ) : (
-              <Image
-                src={pin.thumbnail_url}
-                alt={pin.title || 'Project preview'}
-                width={400}
-                height={300}
-                className="w-full h-auto object-cover"
-                unoptimized
-              />
-            )}
-
-            {/* Hover overlay */}
-            <div
-              style={{
-                position: 'absolute',
-                inset: 0,
-                background: hovered ? 'rgba(0,0,0,0.08)' : 'transparent',
-                transition: 'background 200ms',
-                pointerEvents: 'none',
-              }}
-            />
-
-            {/* Top-right button row */}
-            <div
-              style={{
-                position: 'absolute',
-                top: 10,
-                right: 10,
-                display: 'flex',
-                gap: 6,
-                opacity: hovered ? 1 : 0,
-                pointerEvents: hovered ? 'auto' : 'none',
-                transition: 'opacity 200ms',
-              }}
-            >
-              {/* Save / unsave button */}
-              <button
-                type="button"
-                onClick={handleSaveClick}
-                disabled={saving || unsaving}
-                style={{
-                  display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 4,
-                  borderRadius: 14, padding: '5px 12px',
-                  fontSize: '0.75rem', fontWeight: 700, color: '#fff',
-                  border: 'none',
-                  background: saved ? 'var(--menthe)' : 'var(--verveine)',
-                  cursor: (saving || unsaving) ? 'not-allowed' : 'pointer',
-                  transition: 'background 200ms',
-                }}
-                onMouseEnter={e => { if (!saved) (e.currentTarget as HTMLElement).style.background = 'var(--menthe)' }}
-                onMouseLeave={e => { if (!saved) (e.currentTarget as HTMLElement).style.background = 'var(--verveine)' }}
-              >
-                {(saving || unsaving) ? (
-                  <span style={{ width: 10, height: 10, borderRadius: '50%', border: '2px solid rgba(255,255,255,0.4)', borderTopColor: '#fff', animation: 'spin .7s linear infinite', display: 'inline-block' }} />
-                ) : saved ? (
-                  <>
-                    <svg width="10" height="10" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="3" strokeLinecap="round" strokeLinejoin="round"><polyline points="20 6 9 17 4 12"/></svg>
-                    Saved
-                  </>
-                ) : 'Save'}
-              </button>
-
-              {/* Remove from saved — visible on saved page */}
-              {onUnsave && (
-                <button
-                  type="button"
-                  onClick={handleRemove}
-                  disabled={unsaving}
-                  title="Remove from saved"
-                  style={{
-                    display: 'flex', alignItems: 'center', justifyContent: 'center',
-                    borderRadius: 14, padding: '5px 8px',
-                    border: 'none', color: '#fff',
-                    background: 'rgba(239,68,68,0.80)',
-                    cursor: unsaving ? 'not-allowed' : 'pointer',
-                    transition: 'background 150ms',
-                  }}
-                  onMouseEnter={e => { (e.currentTarget as HTMLElement).style.background = '#ef4444' }}
-                  onMouseLeave={e => { (e.currentTarget as HTMLElement).style.background = 'rgba(239,68,68,0.80)' }}
-                >
-                  <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round">
-                    <path d="M18 6 6 18M6 6l12 12"/>
-                  </svg>
-                </button>
-              )}
-
-              {/* Admin delete — shown to admin for pins they don't own */}
-              {isAdmin && !isOwner && (
-                <button
-                  type="button"
-                  onClick={handleAdminDelete}
-                  disabled={adminDeleting}
-                  title="Admin delete"
-                  style={{
-                    display: 'flex', alignItems: 'center', justifyContent: 'center',
-                    borderRadius: 14,
-                    padding: adminConfirm ? '5px 10px' : '5px 8px',
-                    fontSize: '0.75rem', fontWeight: 700,
-                    color: '#fff', border: 'none',
-                    background: adminConfirm ? '#dc2626' : 'rgba(220,38,38,0.75)',
-                    cursor: adminDeleting ? 'not-allowed' : 'pointer',
-                    gap: 4, transition: 'background 150ms',
-                    whiteSpace: 'nowrap',
-                  }}
-                >
-                  {adminDeleting ? (
-                    <span style={{ width: 12, height: 12, borderRadius: '50%', border: '2px solid rgba(255,255,255,0.4)', borderTopColor: '#fff', animation: 'spin .7s linear infinite', display: 'inline-block' }} />
-                  ) : adminConfirm ? (
-                    'Confirm admin delete?'
-                  ) : (
-                    <>
-                      <svg width="11" height="11" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round">
-                        <polyline points="3 6 5 6 21 6"/><path d="M19 6l-1 14a2 2 0 0 1-2 2H8a2 2 0 0 1-2-2L5 6"/><path d="M10 11v6M14 11v6"/><path d="M9 6V4h6v2"/>
-                      </svg>
-                      ⚑
-                    </>
-                  )}
-                </button>
-              )}
-
-              {/* Delete button — owner only */}
-              {isOwner && (
-                <button
-                  type="button"
-                  onClick={handleDelete}
-                  disabled={deleting}
-                  style={{
-                    display: 'flex', alignItems: 'center', justifyContent: 'center',
-                    borderRadius: 14,
-                    padding: confirmDelete ? '5px 10px' : '5px 8px',
-                    fontSize: '0.75rem', fontWeight: 700,
-                    color: '#fff', border: 'none',
-                    background: confirmDelete ? '#ef4444' : 'rgba(0,0,0,0.55)',
-                    cursor: deleting ? 'not-allowed' : 'pointer',
-                    gap: 4, transition: 'background 150ms',
-                    whiteSpace: 'nowrap',
-                  }}
-                >
-                  {deleting ? (
-                    <span style={{ width: 12, height: 12, borderRadius: '50%', border: '2px solid rgba(255,255,255,0.4)', borderTopColor: '#fff', animation: 'spin .7s linear infinite', display: 'inline-block' }} />
-                  ) : confirmDelete ? (
-                    'Confirm delete?'
-                  ) : (
-                    <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round">
-                      <polyline points="3 6 5 6 21 6"/><path d="M19 6l-1 14a2 2 0 0 1-2 2H8a2 2 0 0 1-2-2L5 6"/><path d="M10 11v6M14 11v6"/><path d="M9 6V4h6v2"/>
-                    </svg>
-                  )}
-                </button>
-              )}
-            </div>
-
-            {/* Flip hint */}
-            <div
-              style={{
-                position: 'absolute',
-                bottom: 8,
-                left: 10,
-                fontSize: '10px',
-                color: 'rgba(255,255,255,0.85)',
-                fontWeight: 600,
-                letterSpacing: '0.04em',
-                opacity: hovered ? 1 : 0,
-                transition: 'opacity 200ms',
-                pointerEvents: 'none',
-              }}
-            >
-              tap to flip
-            </div>
-          </div>
-
-          {/* Card body */}
-          <div style={{ padding: '10px 12px 12px' }}>
-            {categories.length > 0 && (
-              <div style={{ marginBottom: 6, display: 'flex', flexWrap: 'wrap', gap: 6 }}>
-                {categories.map(cat => (
-                  <CategoryBadge key={cat.id} id={cat.id} label={cat.label} />
-                ))}
-              </div>
-            )}
-
-            {pin.title && (
-              <p
-                className="line-clamp-2"
-                style={{
-                  fontSize: '0.875rem',
-                  fontWeight: 600,
-                  color: 'var(--text)',
-                  cursor: 'pointer',
-                  margin: 0,
-                  lineHeight: 1.35,
-                  transition: 'color 120ms',
-                }}
-                onClick={() => setFlipped(true)}
-                onMouseEnter={e => { (e.currentTarget as HTMLElement).style.color = 'var(--menthe)' }}
-                onMouseLeave={e => { (e.currentTarget as HTMLElement).style.color = 'var(--text)' }}
-              >
-                {pin.title}
-              </p>
-            )}
-
-            <div style={{ marginTop: 8, display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 8 }}>
-              {pin.profile && (
-                <Link
-                  href={`/profile/${pin.profile.username}`}
-                  onClick={e => e.stopPropagation()}
-                  style={{ display: 'flex', alignItems: 'center', gap: 6, minWidth: 0, textDecoration: 'none' }}
-                >
-                  <div
-                    style={{
-                      height: 20, width: 20, borderRadius: '50%',
-                      display: 'flex', alignItems: 'center', justifyContent: 'center',
-                      fontSize: '10px', fontWeight: 700, flexShrink: 0, overflow: 'hidden',
-                      background: 'var(--brume)', color: 'var(--menthe)',
-                    }}
-                  >
-                    {pin.profile.avatar_url ? (
-                      <Image
-                        src={pin.profile.avatar_url}
-                        alt={pin.profile.display_name || pin.profile.username}
-                        width={20}
-                        height={20}
-                        className="h-full w-full object-cover"
-                        unoptimized
-                      />
-                    ) : (
-                      (pin.profile.display_name || pin.profile.username).charAt(0).toUpperCase()
-                    )}
-                  </div>
-                  <span
-                    className="truncate"
-                    style={{ fontSize: '0.75rem', color: 'var(--muted)', transition: 'color 120ms' }}
-                    onMouseEnter={e => { (e.currentTarget as HTMLElement).style.color = 'var(--menthe)' }}
-                    onMouseLeave={e => { (e.currentTarget as HTMLElement).style.color = 'var(--muted)' }}
-                  >
-                    {pin.profile.display_name || pin.profile.username}
-                  </span>
-                </Link>
-              )}
-
-              <a
-                href={pin.live_url}
-                target="_blank"
-                rel="noopener noreferrer"
-                onClick={e => e.stopPropagation()}
-                style={{
-                  flexShrink: 0,
-                  display: 'inline-flex',
-                  alignItems: 'center',
-                  gap: 4,
-                  fontSize: '0.75rem',
-                  color: 'var(--menthe)',
-                  textDecoration: 'none',
-                }}
-                onMouseEnter={e => { (e.currentTarget as HTMLElement).style.textDecoration = 'underline' }}
-                onMouseLeave={e => { (e.currentTarget as HTMLElement).style.textDecoration = 'none' }}
-              >
-                <svg width="10" height="10" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true">
-                  <path d="M18 13v6a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V8a2 2 0 0 1 2-2h6"/>
-                  <polyline points="15 3 21 3 21 9"/>
-                  <line x1="10" y1="14" x2="21" y2="3"/>
-                </svg>
-                Live
-              </a>
-            </div>
-          </div>
-        </div>
-
-        {/* ── BACK FACE ── */}
+        {/* Thumbnail */}
         <div
-          onClick={() => setFlipped(false)}
           style={{
-            position: 'absolute',
-            inset: 0,
-            transform: 'rotateY(180deg)',
-            backfaceVisibility: 'hidden',
-            WebkitBackfaceVisibility: 'hidden',
-            background: 'var(--bg)',
-            borderRadius: 18,
-            padding: '18px 16px 14px',
-            display: 'flex',
-            flexDirection: 'column',
-            gap: 8,
-            cursor: 'pointer',
+            position: 'relative',
+            width: '100%',
+            background: 'var(--brume)',
+            minHeight: '180px',
+            borderRadius: '18px 18px 0 0',
             overflow: 'hidden',
-            pointerEvents: flipped ? 'auto' : 'none',
           }}
         >
-          {/* Flip back hint */}
+          {pin.media_type === 'video' ? (
+            <VideoPreview src={pin.media_url} poster={pin.thumbnail_url} />
+          ) : (
+            <Image
+              src={pin.thumbnail_url}
+              alt={pin.title || 'Project preview'}
+              width={400}
+              height={300}
+              className="w-full h-auto object-cover"
+              unoptimized
+            />
+          )}
+
+          {/* Hover overlay */}
+          <div
+            style={{
+              position: 'absolute',
+              inset: 0,
+              background: hovered ? 'rgba(0,0,0,0.08)' : 'transparent',
+              transition: 'background 200ms',
+              pointerEvents: 'none',
+            }}
+          />
+
+          {/* Top-right button row */}
           <div
             style={{
               position: 'absolute',
               top: 10,
-              right: 12,
-              fontSize: '10px',
-              color: 'var(--muted-light)',
-              fontWeight: 600,
-              letterSpacing: '0.04em',
+              right: 10,
+              display: 'flex',
+              gap: 6,
+              opacity: hovered ? 1 : 0,
+              pointerEvents: hovered ? 'auto' : 'none',
+              transition: 'opacity 200ms',
             }}
           >
-            tap to flip ↩
-          </div>
+            {/* Save / unsave button */}
+            <button
+              type="button"
+              onClick={handleSaveClick}
+              disabled={saving || unsaving}
+              style={{
+                display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 4,
+                borderRadius: 14, padding: '5px 12px',
+                fontSize: '0.75rem', fontWeight: 700, color: '#fff',
+                border: 'none',
+                background: saved ? 'var(--menthe)' : 'var(--verveine)',
+                cursor: (saving || unsaving) ? 'not-allowed' : 'pointer',
+                transition: 'background 200ms',
+              }}
+              onMouseEnter={e => { if (!saved) (e.currentTarget as HTMLElement).style.background = 'var(--menthe)' }}
+              onMouseLeave={e => { if (!saved) (e.currentTarget as HTMLElement).style.background = 'var(--verveine)' }}
+            >
+              {(saving || unsaving) ? (
+                <span style={{ width: 10, height: 10, borderRadius: '50%', border: '2px solid rgba(255,255,255,0.4)', borderTopColor: '#fff', animation: 'spin .7s linear infinite', display: 'inline-block' }} />
+              ) : saved ? (
+                <>
+                  <svg width="10" height="10" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="3" strokeLinecap="round" strokeLinejoin="round"><polyline points="20 6 9 17 4 12"/></svg>
+                  Saved
+                </>
+              ) : 'Save'}
+            </button>
 
-          {/* Category badges */}
+            {/* Remove from saved — visible on saved page */}
+            {onUnsave && (
+              <button
+                type="button"
+                onClick={handleRemove}
+                disabled={unsaving}
+                title="Remove from saved"
+                style={{
+                  display: 'flex', alignItems: 'center', justifyContent: 'center',
+                  borderRadius: 14, padding: '5px 8px',
+                  border: 'none', color: '#fff',
+                  background: 'rgba(239,68,68,0.80)',
+                  cursor: unsaving ? 'not-allowed' : 'pointer',
+                  transition: 'background 150ms',
+                }}
+                onMouseEnter={e => { (e.currentTarget as HTMLElement).style.background = '#ef4444' }}
+                onMouseLeave={e => { (e.currentTarget as HTMLElement).style.background = 'rgba(239,68,68,0.80)' }}
+              >
+                <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round">
+                  <path d="M18 6 6 18M6 6l12 12"/>
+                </svg>
+              </button>
+            )}
+
+            {/* Admin delete — shown to admin for pins they don't own */}
+            {isAdmin && !isOwner && (
+              <button
+                type="button"
+                onClick={handleAdminDelete}
+                disabled={adminDeleting}
+                title="Admin delete"
+                style={{
+                  display: 'flex', alignItems: 'center', justifyContent: 'center',
+                  borderRadius: 14,
+                  padding: adminConfirm ? '5px 10px' : '5px 8px',
+                  fontSize: '0.75rem', fontWeight: 700,
+                  color: '#fff', border: 'none',
+                  background: adminConfirm ? '#dc2626' : 'rgba(220,38,38,0.75)',
+                  cursor: adminDeleting ? 'not-allowed' : 'pointer',
+                  gap: 4, transition: 'background 150ms',
+                  whiteSpace: 'nowrap',
+                }}
+              >
+                {adminDeleting ? (
+                  <span style={{ width: 12, height: 12, borderRadius: '50%', border: '2px solid rgba(255,255,255,0.4)', borderTopColor: '#fff', animation: 'spin .7s linear infinite', display: 'inline-block' }} />
+                ) : adminConfirm ? (
+                  'Confirm admin delete?'
+                ) : (
+                  <>
+                    <svg width="11" height="11" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round">
+                      <polyline points="3 6 5 6 21 6"/><path d="M19 6l-1 14a2 2 0 0 1-2 2H8a2 2 0 0 1-2-2L5 6"/><path d="M10 11v6M14 11v6"/><path d="M9 6V4h6v2"/>
+                    </svg>
+                    ⚑
+                  </>
+                )}
+              </button>
+            )}
+
+            {/* Delete button — owner only */}
+            {isOwner && (
+              <button
+                type="button"
+                onClick={handleDelete}
+                disabled={deleting}
+                style={{
+                  display: 'flex', alignItems: 'center', justifyContent: 'center',
+                  borderRadius: 14,
+                  padding: confirmDelete ? '5px 10px' : '5px 8px',
+                  fontSize: '0.75rem', fontWeight: 700,
+                  color: '#fff', border: 'none',
+                  background: confirmDelete ? '#ef4444' : 'rgba(0,0,0,0.55)',
+                  cursor: deleting ? 'not-allowed' : 'pointer',
+                  gap: 4, transition: 'background 150ms',
+                  whiteSpace: 'nowrap',
+                }}
+              >
+                {deleting ? (
+                  <span style={{ width: 12, height: 12, borderRadius: '50%', border: '2px solid rgba(255,255,255,0.4)', borderTopColor: '#fff', animation: 'spin .7s linear infinite', display: 'inline-block' }} />
+                ) : confirmDelete ? (
+                  'Confirm delete?'
+                ) : (
+                  <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round">
+                    <polyline points="3 6 5 6 21 6"/><path d="M19 6l-1 14a2 2 0 0 1-2 2H8a2 2 0 0 1-2-2L5 6"/><path d="M10 11v6M14 11v6"/><path d="M9 6V4h6v2"/>
+                  </svg>
+                )}
+              </button>
+            )}
+
+            {/* Edit button — owner only */}
+            {isOwner && (
+              <button
+                type="button"
+                onClick={e => { e.stopPropagation(); setShowEditModal(true) }}
+                title="Edit pin"
+                style={{
+                  display: 'flex', alignItems: 'center', justifyContent: 'center',
+                  borderRadius: 14, padding: '5px 8px',
+                  border: 'none', color: '#fff',
+                  background: 'rgba(0,0,0,0.55)',
+                  cursor: 'pointer',
+                  transition: 'background 150ms',
+                }}
+                onMouseEnter={e => { (e.currentTarget as HTMLElement).style.background = 'var(--menthe)' }}
+                onMouseLeave={e => { (e.currentTarget as HTMLElement).style.background = 'rgba(0,0,0,0.55)' }}
+              >
+                <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round">
+                  <path d="M11 4H4a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h14a2 2 0 0 0 2-2v-7"/>
+                  <path d="M18.5 2.5a2.121 2.121 0 0 1 3 3L12 15l-4 1 1-4 9.5-9.5z"/>
+                </svg>
+              </button>
+            )}
+          </div>
+        </div>
+
+        {/* Card body */}
+        <div style={{ padding: '10px 12px 12px' }}>
           {categories.length > 0 && (
-            <div style={{ display: 'flex', flexWrap: 'wrap', gap: 6 }}>
+            <div style={{ marginBottom: 6, display: 'flex', flexWrap: 'wrap', gap: 6 }}>
               {categories.map(cat => (
                 <CategoryBadge key={cat.id} id={cat.id} label={cat.label} />
               ))}
             </div>
           )}
 
-          {/* Title */}
-          <h3
-            style={{
-              fontSize: '0.9375rem',
-              fontWeight: 800,
-              color: 'var(--text)',
-              lineHeight: 1.3,
-              margin: 0,
-              display: '-webkit-box',
-              WebkitLineClamp: 2,
-              WebkitBoxOrient: 'vertical',
-              overflow: 'hidden',
-            }}
-          >
-            {pin.title || 'Untitled'}
-          </h3>
-
-          {/* Description */}
-          {pin.description ? (
+          {pin.title && (
             <p
+              className="line-clamp-2"
               style={{
-                fontSize: '0.8125rem',
-                color: 'var(--muted)',
-                lineHeight: 1.55,
-                margin: 0,
-                flex: 1,
-                display: '-webkit-box',
-                WebkitLineClamp: 4,
-                WebkitBoxOrient: 'vertical',
-                overflow: 'hidden',
-              }}
-            >
-              {pin.description}
-            </p>
-          ) : (
-            <div style={{ flex: 1 }} />
-          )}
-
-          <div style={{ flex: 1 }} />
-
-          {/* Edit button — owner only, on back face */}
-          {isOwner && (
-            <button
-              type="button"
-              onClick={e => { e.stopPropagation(); setShowEditModal(true) }}
-              style={{
-                display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 6,
-                padding: '8px 12px',
-                borderRadius: 10,
-                border: '1.5px solid var(--border)',
-                background: 'var(--surface)',
-                color: 'var(--text)',
-                fontSize: '0.8rem',
+                fontSize: '0.875rem',
                 fontWeight: 600,
-                cursor: 'pointer',
-                transition: 'border-color 150ms, background 150ms',
-                width: '100%',
+                color: 'var(--text)',
+                margin: 0,
+                lineHeight: 1.35,
+                transition: 'color 120ms',
               }}
-              onMouseEnter={e => { (e.currentTarget as HTMLElement).style.borderColor = 'var(--menthe)'; (e.currentTarget as HTMLElement).style.color = 'var(--menthe)' }}
-              onMouseLeave={e => { (e.currentTarget as HTMLElement).style.borderColor = 'var(--border)'; (e.currentTarget as HTMLElement).style.color = 'var(--text)' }}
+              onMouseEnter={e => { (e.currentTarget as HTMLElement).style.color = 'var(--menthe)' }}
+              onMouseLeave={e => { (e.currentTarget as HTMLElement).style.color = 'var(--text)' }}
             >
-              <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round">
-                <path d="M11 4H4a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h14a2 2 0 0 0 2-2v-7"/>
-                <path d="M18.5 2.5a2.121 2.121 0 0 1 3 3L12 15l-4 1 1-4 9.5-9.5z"/>
-              </svg>
-              Edit
-            </button>
+              {pin.title}
+            </p>
           )}
 
-          {/* CTA links */}
-          <div style={{ display: 'flex', gap: 8 }}>
+          <div style={{ marginTop: 8, display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 8 }}>
+            {pin.profile && (
+              <Link
+                href={`/profile/${pin.profile.username}`}
+                onClick={e => e.stopPropagation()}
+                style={{ display: 'flex', alignItems: 'center', gap: 6, minWidth: 0, textDecoration: 'none' }}
+              >
+                <div
+                  style={{
+                    height: 20, width: 20, borderRadius: '50%',
+                    display: 'flex', alignItems: 'center', justifyContent: 'center',
+                    fontSize: '10px', fontWeight: 700, flexShrink: 0, overflow: 'hidden',
+                    background: 'var(--brume)', color: 'var(--menthe)',
+                  }}
+                >
+                  {pin.profile.avatar_url ? (
+                    <Image
+                      src={pin.profile.avatar_url}
+                      alt={pin.profile.display_name || pin.profile.username}
+                      width={20}
+                      height={20}
+                      className="h-full w-full object-cover"
+                      unoptimized
+                    />
+                  ) : (
+                    (pin.profile.display_name || pin.profile.username).charAt(0).toUpperCase()
+                  )}
+                </div>
+                <span
+                  className="truncate"
+                  style={{ fontSize: '0.75rem', color: 'var(--muted)', transition: 'color 120ms' }}
+                  onMouseEnter={e => { (e.currentTarget as HTMLElement).style.color = 'var(--menthe)' }}
+                  onMouseLeave={e => { (e.currentTarget as HTMLElement).style.color = 'var(--muted)' }}
+                >
+                  {pin.profile.display_name || pin.profile.username}
+                </span>
+              </Link>
+            )}
+
             <a
               href={pin.live_url}
               target="_blank"
               rel="noopener noreferrer"
               onClick={e => e.stopPropagation()}
               style={{
-                flex: 1,
-                display: 'flex',
+                flexShrink: 0,
+                display: 'inline-flex',
                 alignItems: 'center',
-                justifyContent: 'center',
-                gap: 5,
-                padding: '8px 10px',
-                borderRadius: 10,
-                border: 'none',
-                background: 'var(--menthe)',
-                color: '#fff',
-                fontSize: '0.8rem',
-                fontWeight: 700,
+                gap: 4,
+                fontSize: '0.75rem',
+                color: 'var(--menthe)',
                 textDecoration: 'none',
-                transition: 'opacity 150ms',
               }}
-              onMouseEnter={e => { (e.currentTarget as HTMLElement).style.opacity = '0.85' }}
-              onMouseLeave={e => { (e.currentTarget as HTMLElement).style.opacity = '1' }}
+              onMouseEnter={e => { (e.currentTarget as HTMLElement).style.textDecoration = 'underline' }}
+              onMouseLeave={e => { (e.currentTarget as HTMLElement).style.textDecoration = 'none' }}
             >
-              <svg width="11" height="11" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round">
+              <svg width="10" height="10" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true">
                 <path d="M18 13v6a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V8a2 2 0 0 1 2-2h6"/>
                 <polyline points="15 3 21 3 21 9"/>
                 <line x1="10" y1="14" x2="21" y2="3"/>
               </svg>
-              Visit
+              Live
             </a>
-
-            {pin.repo_url && (
-              <a
-                href={pin.repo_url}
-                target="_blank"
-                rel="noopener noreferrer"
-                onClick={e => e.stopPropagation()}
-                style={{
-                  flex: 1,
-                  display: 'flex',
-                  alignItems: 'center',
-                  justifyContent: 'center',
-                  gap: 5,
-                  padding: '8px 10px',
-                  borderRadius: 10,
-                  border: '1.5px solid var(--border)',
-                  background: 'transparent',
-                  color: 'var(--text)',
-                  fontSize: '0.8rem',
-                  fontWeight: 600,
-                  textDecoration: 'none',
-                  transition: 'border-color 150ms',
-                }}
-                onMouseEnter={e => { (e.currentTarget as HTMLElement).style.borderColor = 'var(--menthe)' }}
-                onMouseLeave={e => { (e.currentTarget as HTMLElement).style.borderColor = 'var(--border)' }}
-              >
-                <svg width="11" height="11" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.2" strokeLinecap="round" strokeLinejoin="round">
-                  <path d="M9 19c-5 1.5-5-2.5-7-3m14 6v-3.87a3.37 3.37 0 0 0-.94-2.61c3.14-.35 6.44-1.54 6.44-7A5.44 5.44 0 0 0 20 4.77 5.07 5.07 0 0 0 19.91 1S18.73.65 16 2.48a13.38 13.38 0 0 0-7 0C6.27.65 5.09 1 5.09 1A5.07 5.07 0 0 0 5 4.77a5.44 5.44 0 0 0-1.5 3.78c0 5.42 3.3 6.61 6.44 7A3.37 3.37 0 0 0 9 18.13V22"/>
-                </svg>
-                Repo
-              </a>
-            )}
           </div>
-
-          {/* Author */}
-          {pin.profile && (
-            <Link
-              href={`/profile/${pin.profile.username}`}
-              onClick={e => e.stopPropagation()}
-              style={{ display: 'flex', alignItems: 'center', gap: 6, textDecoration: 'none' }}
-            >
-              <div
-                style={{
-                  height: 18, width: 18, borderRadius: '50%',
-                  display: 'flex', alignItems: 'center', justifyContent: 'center',
-                  fontSize: '9px', fontWeight: 700, flexShrink: 0, overflow: 'hidden',
-                  background: 'var(--brume)', color: 'var(--menthe)',
-                }}
-              >
-                {pin.profile.avatar_url ? (
-                  <Image
-                    src={pin.profile.avatar_url}
-                    alt={pin.profile.display_name || pin.profile.username}
-                    width={18}
-                    height={18}
-                    className="h-full w-full object-cover"
-                    unoptimized
-                  />
-                ) : (
-                  (pin.profile.display_name || pin.profile.username).charAt(0).toUpperCase()
-                )}
-              </div>
-              <span style={{ fontSize: '0.75rem', color: 'var(--muted)', transition: 'color 120ms' }}
-                onMouseEnter={e => { (e.currentTarget as HTMLElement).style.color = 'var(--menthe)' }}
-                onMouseLeave={e => { (e.currentTarget as HTMLElement).style.color = 'var(--muted)' }}
-              >
-                {pin.profile.display_name || pin.profile.username}
-              </span>
-            </Link>
-          )}
         </div>
       </div>
 
@@ -751,7 +537,6 @@ export default function PinCard({ pin: initialPin, onSave, currentUserId, onDele
           onSaved={updated => {
             setPin(updated)
             setShowEditModal(false)
-            setFlipped(false)
             onEdit?.(updated)
           }}
         />

@@ -15,22 +15,7 @@ export default function ModalRoot({ children, onClose }: ModalRootProps) {
   // Wait until client-side mount so `document` is available for createPortal
   useEffect(() => { setMounted(true) }, [])
 
-  // Lock body scroll while modal is open, restore on unmount
-  useEffect(() => {
-    if (!mounted) return
-    const previousOverflow = document.body.style.overflow
-    const previousPaddingRight = document.body.style.paddingRight
-
-    // Measure scrollbar width to prevent layout shift
-    const scrollbarWidth = window.innerWidth - document.documentElement.clientWidth
-    document.body.style.overflow = 'hidden'
-    document.body.style.paddingRight = `${scrollbarWidth}px`
-
-    return () => {
-      document.body.style.overflow = previousOverflow
-      document.body.style.paddingRight = previousPaddingRight
-    }
-  }, [mounted])
+  // Allow the page to remain scrollable — no body scroll lock
 
   // Close on Escape key
   useEffect(() => {
@@ -52,12 +37,26 @@ export default function ModalRoot({ children, onClose }: ModalRootProps) {
     <div
       ref={overlayRef}
       onClick={handleBackdropClick}
-      className="fixed inset-0 z-50 overflow-y-auto bg-black/60 backdrop-blur-sm"
+      style={{
+        position: 'fixed',
+        inset: 0,
+        zIndex: 50,
+        overflowY: 'auto',
+        background: 'rgba(0, 0, 0, 0.6)',
+        backdropFilter: 'blur(4px)',
+        WebkitBackdropFilter: 'blur(4px)',
+      }}
       aria-modal="true"
       role="dialog"
     >
       {/* Centering wrapper — click-through to backdrop handled above */}
-      <div className="flex min-h-full items-start justify-center px-4 py-10 sm:py-16">
+      <div style={{
+        display: 'flex',
+        minHeight: '100%',
+        alignItems: 'flex-start',
+        justifyContent: 'center',
+        padding: '32px 32px',
+      }}>
         {children}
       </div>
     </div>,

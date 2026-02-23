@@ -75,17 +75,6 @@ export async function POST(_req: NextRequest, { params }: Params) {
     return NextResponse.json({ error: 'Cannot follow yourself' }, { status: 400 })
   }
 
-  // Check if target has blocked us or we have blocked them
-  const { data: blockRow } = await supabase
-    .from('blocks')
-    .select('blocker_id')
-    .or(`and(blocker_id.eq.${target.id},blocked_id.eq.${currentUser.id}),and(blocker_id.eq.${currentUser.id},blocked_id.eq.${target.id})`)
-    .maybeSingle()
-
-  if (blockRow) {
-    return NextResponse.json({ error: 'Blocked' }, { status: 403 })
-  }
-
   const { error } = await supabase
     .from('follows')
     .insert({ follower_id: currentUser.id, following_id: target.id })
