@@ -78,8 +78,11 @@ export default function SignupPage() {
             <span style={{ fontWeight: 600, color: 'var(--text)' }}>{email}</span>.
             {' '}Click it to activate your account.
           </p>
-          <Link href="/login" style={{ color: 'var(--menthe)', fontWeight: 600, textDecoration: 'none', fontSize: '0.9rem' }}>
-            ← Back to sign in
+          <Link href="/login" className="back-btn">
+            <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round">
+              <path d="m15 18-6-6 6-6" />
+            </svg>
+            Back to sign in
           </Link>
         </div>
       </div>
@@ -308,16 +311,11 @@ export default function SignupPage() {
               >
                 {loading ? 'Creating account…' : 'Create account'}
               </button>
-              <button
-                type="button"
-                onClick={() => setShowEmailForm(false)}
-                style={{
-                  background: 'none', border: 'none', color: 'var(--muted)',
-                  fontSize: '0.8125rem', cursor: 'pointer', padding: '4px',
-                  textAlign: 'left',
-                }}
-              >
-                ← Back to options
+              <button type="button" onClick={() => setShowEmailForm(false)} className="back-btn">
+                <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round">
+                  <path d="m15 18-6-6 6-6" />
+                </svg>
+                Back to options
               </button>
             </form>
           )}

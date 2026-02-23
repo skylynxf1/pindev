@@ -124,25 +124,13 @@ export default function PinModal({ pinId }: PinModalProps) {
             <button
               type="button"
               onClick={handleClose}
-              style={{
-                marginTop: 8,
-                borderRadius: 16,
-                border: 'none',
-                background: 'var(--menthe)',
-                padding: '10px 24px',
-                fontSize: '0.875rem',
-                fontWeight: 600,
-                color: '#fff',
-                cursor: 'pointer',
-                transition: 'opacity 150ms',
-              }}
-              onMouseEnter={(e) => {
-                e.currentTarget.style.opacity = '0.85'
-              }}
-              onMouseLeave={(e) => {
-                e.currentTarget.style.opacity = '1'
+              className="back-btn"
+              style={{ marginTop: 8
               }}
             >
+              <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round">
+                <path d="m15 18-6-6 6-6" />
+              </svg>
               Go back
             </button>
           </div>

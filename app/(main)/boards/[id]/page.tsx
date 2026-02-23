@@ -361,7 +361,10 @@ export default function BoardPage() {
       <main style={{ minHeight: '100vh', background: 'var(--bg)', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
         <div style={{ textAlign: 'center', padding: '40px 20px' }}>
           <p style={{ fontSize: '1rem', fontWeight: 700, color: 'var(--text)', marginBottom: 8 }}>{error}</p>
-          <button type="button" onClick={goToBoards} style={{ padding: '9px 20px', borderRadius: 12, border: 'none', background: 'var(--menthe)', color: '#fff', fontSize: '0.875rem', fontWeight: 700, cursor: 'pointer' }}>
+          <button type="button" onClick={goToBoards} className="back-btn">
+            <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round">
+              <path d="m15 18-6-6 6-6" />
+            </svg>
             Go back
           </button>
         </div>
@@ -374,19 +377,7 @@ export default function BoardPage() {
       <div style={{ maxWidth: 1800, margin: '0 auto', padding: '32px 24px 80px' }}>
 
         {/* Back button */}
-        <button
-          type="button"
-          onClick={goToBoards}
-          style={{
-            display: 'inline-flex', alignItems: 'center', gap: 6,
-            marginBottom: 24, padding: '8px 16px', borderRadius: 12,
-            border: '1.5px solid var(--border)', background: 'var(--bg)',
-            fontSize: '0.875rem', fontWeight: 600, color: 'var(--muted)',
-            cursor: 'pointer', transition: 'color 150ms, border-color 150ms, background 150ms',
-          }}
-          onMouseEnter={e => { const el = e.currentTarget as HTMLButtonElement; el.style.color = 'var(--menthe)'; el.style.borderColor = 'var(--menthe)'; el.style.background = 'var(--brume)' }}
-          onMouseLeave={e => { const el = e.currentTarget as HTMLButtonElement; el.style.color = 'var(--muted)'; el.style.borderColor = 'var(--border)'; el.style.background = 'var(--bg)' }}
-        >
+        <button type="button" onClick={goToBoards} className="back-btn" style={{ marginBottom: 24 }}>
           <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round">
             <path d="m15 18-6-6 6-6" />
           </svg>
