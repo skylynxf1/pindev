@@ -1,6 +1,6 @@
+import { cache } from 'react'
 import { notFound } from 'next/navigation'
 import { createClient } from '@/lib/supabase/server'
-import { getSimilarPins } from '@/lib/db/queries'
 import PinPageClient from '@/components/pin/PinPageClient'
 import type { Pin } from '@/types'
 import type { Metadata } from 'next'
@@ -9,7 +9,9 @@ interface Props {
   params: Promise<{ id: string }>
 }
 
-async function getPin(id: string): Promise<Pin | null> {
+// Deduplicate: generateMetadata + PinPage both call getPin —
+// React cache() ensures only one Supabase round-trip per request.
+const getPin = cache(async (id: string): Promise<Pin | null> => {
   const supabase = await createClient()
 
   const { data, error } = await supabase
@@ -51,7 +53,7 @@ async function getPin(id: string): Promise<Pin | null> {
           .filter(Boolean)
       : [],
   }
-}
+})
 
 export async function generateMetadata({ params }: Props): Promise<Metadata> {
   const { id } = await params
@@ -75,16 +77,7 @@ export default async function PinPage({ params }: Props) {
 
   if (!pin) notFound()
 
-  // Fetch similar pins server-side for faster initial render
-  const supabase = await createClient()
-  const tagNames = pin.tags?.map((t) => t.name) ?? []
-  const { data: rawSimilar } = await getSimilarPins(supabase, id, tagNames, 12)
-
-  // Map DbPinWithRelations → Pin (null profile → undefined)
-  const similarPins: Pin[] = (rawSimilar ?? []).map((r) => ({
-    ...r,
-    profile: r.profile ?? undefined,
-  }))
-
-  return <PinPageClient pin={pin} similarPins={similarPins} />
+  // Similar pins are fetched client-side so the selected pin renders
+  // immediately without waiting for 3-4 extra DB round-trips.
+  return <PinPageClient pin={pin} />
 }

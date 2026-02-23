@@ -6,10 +6,9 @@ import PinDetailView from './PinDetailView'
 
 interface PinPageClientProps {
   pin: Pin
-  similarPins?: Pin[]
 }
 
-export default function PinPageClient({ pin, similarPins }: PinPageClientProps) {
+export default function PinPageClient({ pin }: PinPageClientProps) {
   const router = useRouter()
 
   return (
@@ -61,7 +60,7 @@ export default function PinPageClient({ pin, similarPins }: PinPageClientProps) 
       </button>
 
       {/* ── Pin detail view ── */}
-      <PinDetailView pin={pin} initialSimilarPins={similarPins} />
+      <PinDetailView pin={pin} />
     </div>
   )
 }

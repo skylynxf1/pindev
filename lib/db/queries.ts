@@ -268,62 +268,80 @@ export async function getProfilePins(
 /**
  * Returns pins similar to the given pin based on shared tags.
  * Falls back to recent pins if no tag matches are found.
+ *
+ * Supports cursor-based pagination:
+ *   - First page (no cursor): tag-matching + recent fallback
+ *   - Subsequent pages (cursor): recent pins after cursor
  */
 export async function getSimilarPins(
   supabase: SupabaseClient,
   pinId: string,
   tagNames: string[],
-  limit = 12
+  limit = 20,
+  cursor?: string,
 ): Promise<QueryResult<DbPinWithRelations[]>> {
   try {
-    // Strategy 1: Find pins sharing tags with current pin
-    if (tagNames.length > 0) {
-      const { data: tagRows } = await supabase
-        .from('tags')
-        .select('id')
-        .in('name', tagNames)
+    // ── Subsequent pages: cursor-based recent pins ──────────────────────
+    if (cursor) {
+      const { data, error } = await supabase
+        .from('pins')
+        .select(PIN_SELECT)
+        .eq('is_published', true)
+        .neq('id', pinId)
+        .lt('created_at', cursor)
+        .order('created_at', { ascending: false })
+        .limit(limit)
 
-      const tagIds = (tagRows ?? []).map(
-        (t: Record<string, unknown>) => t.id as string
-      )
+      if (error) throw new Error(error.message)
 
-      if (tagIds.length > 0) {
-        const { data: pinTagRows } = await supabase
-          .from('pin_tags')
-          .select('pin_id')
-          .in('tag_id', tagIds)
-
-        const candidateIds = [
-          ...new Set(
-            (pinTagRows ?? []).map(
-              (pt: Record<string, unknown>) => pt.pin_id as string
-            )
-          ),
-        ].filter((id) => id !== pinId)
-
-        if (candidateIds.length > 0) {
-          const { data, error } = await supabase
-            .from('pins')
-            .select(PIN_SELECT)
-            .in('id', candidateIds.slice(0, limit * 2))
-            .eq('is_published', true)
-            .order('created_at', { ascending: false })
-            .limit(limit)
-
-          if (!error && data && data.length >= 4) {
-            return {
-              data: (data as unknown as Record<string, unknown>[]).map(
-                normalisePin
-              ),
-              error: null,
-            }
-          }
-          // If fewer than 4 tag-matched pins, fall through to recent
-        }
+      return {
+        data: ((data ?? []) as unknown as Record<string, unknown>[]).map(
+          normalisePin
+        ),
+        error: null,
       }
     }
 
-    // Strategy 2 (fallback): Recent published pins excluding the current one
+    // ── First page: tag matching + recent fallback ──────────────────────
+    if (tagNames.length > 0) {
+      // Single query: resolve tag names → associated pin IDs via nested join
+      const { data: tagRows } = await supabase
+        .from('tags')
+        .select('id, pin_tags ( pin_id )')
+        .in('name', tagNames)
+
+      const candidateIds = [
+        ...new Set(
+          (tagRows ?? []).flatMap((t: Record<string, unknown>) =>
+            (
+              (t.pin_tags as Array<Record<string, unknown>>) ?? []
+            ).map((pt) => pt.pin_id as string)
+          )
+        ),
+      ].filter((id) => id !== pinId)
+
+      if (candidateIds.length > 0) {
+        const { data, error } = await supabase
+          .from('pins')
+          .select(PIN_SELECT)
+          .in('id', candidateIds.slice(0, limit * 2))
+          .eq('is_published', true)
+          .order('created_at', { ascending: false })
+          .limit(limit)
+
+        if (!error && data && data.length >= 4) {
+          return {
+            data: (data as unknown as Record<string, unknown>[]).map(
+              normalisePin
+            ),
+            error: null,
+          }
+        }
+        // If fewer than 4 tag-matched pins, fall through to recent
+      }
+    }
+
+    // Fallback: recent published pins excluding the current one
     const { data, error } = await supabase
       .from('pins')
       .select(PIN_SELECT)

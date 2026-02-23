@@ -49,13 +49,13 @@ function ResultCard({
       onMouseLeave={() => setHovered(false)}
     >
       <Link href={`/pin/${pin.id}`} scroll={false}>
-        <div className="relative overflow-hidden bg-[#C2F2E4]/20">
+        <div className="relative overflow-hidden bg-[#C2F2E4]/20" style={{ aspectRatio: '4/3' }}>
           <Image
             src={imgError ? '/placeholder.png' : pin.thumbnail_url}
             alt={pin.title || 'Project preview'}
-            width={600}
-            height={400}
-            className="w-full h-auto object-cover"
+            fill
+            sizes="(max-width: 640px) 100vw, (max-width: 1200px) 50vw, 25vw"
+            className="object-cover object-center"
             onError={() => setImgError(true)}
             unoptimized
           />

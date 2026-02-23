@@ -113,7 +113,7 @@ function VideoPreview({ src, poster }: { src: string; poster: string }) {
       muted
       loop
       playsInline
-      style={{ width: '100%', height: 'auto', display: 'block' }}
+      style={{ width: '100%', height: '100%', display: 'block', objectFit: 'cover', objectPosition: 'center' }}
     />
   )
 }
@@ -279,8 +279,8 @@ export default memo(function PinCard({ pin: initialPin, onSave, currentUserId, o
           style={{
             position: 'relative',
             width: '100%',
+            aspectRatio: '4/3',
             background: 'var(--brume)',
-            minHeight: '180px',
             borderRadius: '18px 18px 0 0',
             overflow: 'hidden',
           }}
@@ -291,9 +291,9 @@ export default memo(function PinCard({ pin: initialPin, onSave, currentUserId, o
             <Image
               src={pin.thumbnail_url}
               alt={pin.title || 'Project preview'}
-              width={400}
-              height={300}
-              className="w-full h-auto object-cover"
+              fill
+              sizes="(max-width: 640px) 100vw, (max-width: 1200px) 50vw, 25vw"
+              style={{ objectFit: 'cover', objectPosition: 'center' }}
               unoptimized
             />
           )}

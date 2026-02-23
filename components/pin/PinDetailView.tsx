@@ -1,6 +1,6 @@
 'use client'
 
-import { useState, useEffect, useRef, useMemo } from 'react'
+import { useState, useEffect, useRef, useMemo, useCallback, startTransition } from 'react'
 import Image from 'next/image'
 import Link from 'next/link'
 import { createClient } from '@/lib/supabase/client'
@@ -42,6 +42,7 @@ function getCategoriesFromTags(tags?: Tag[]) {
 
 /* How many pins to show under the selected pin (left column) */
 const LEFT_PIN_COUNT = 4
+const BATCH_SIZE = 20
 
 /* ─────────────────────────────────────────────────────────────
    PIN DETAIL VIEW — Normal routed page.
@@ -49,27 +50,39 @@ const LEFT_PIN_COUNT = 4
    Desktop — left: selected pin + left-under suggestions
              right: "More like this" masonry board
    Mobile  — single column, unified suggestion grid
+
+   Recommendations load client-side with infinite scroll.
    ───────────────────────────────────────────────────────────── */
 
 interface PinDetailViewProps {
   pin: Pin
-  initialSimilarPins?: Pin[]
 }
 
 export default function PinDetailView({
   pin,
-  initialSimilarPins,
 }: PinDetailViewProps) {
   const [flipped, setFlipped] = useState(false)
-  const [similarPins, setSimilarPins] = useState<Pin[]>(
-    initialSimilarPins ?? []
-  )
-  const [loadingSimilar, setLoadingSimilar] = useState(!initialSimilarPins)
+  const [similarPins, setSimilarPins] = useState<Pin[]>([])
+  const [loadingSimilar, setLoadingSimilar] = useState(true)
+  const [loadingMore, setLoadingMore] = useState(false)
+  const [hasMore, setHasMore] = useState(true)
+  const [likesMap, setLikesMap] = useState<Record<string, { likeCount: number; likedByMe: boolean }>>({})
   const [userId, setUserId] = useState<string | null | undefined>(undefined)
   const [saved, setSaved] = useState(false)
   const [saving, setSaving] = useState(false)
   const videoRef = useRef<HTMLVideoElement>(null)
+  const sentinelRef = useRef<HTMLDivElement>(null)
   const categories = getCategoriesFromTags(pin.tags)
+
+  // Refs for IntersectionObserver closure freshness
+  const hasMoreRef = useRef(hasMore)
+  const loadingMoreRef = useRef(loadingMore)
+  const loadingSimilarRef = useRef(loadingSimilar)
+  const similarPinsRef = useRef(similarPins)
+  useEffect(() => { hasMoreRef.current = hasMore }, [hasMore])
+  useEffect(() => { loadingMoreRef.current = loadingMore }, [loadingMore])
+  useEffect(() => { loadingSimilarRef.current = loadingSimilar }, [loadingSimilar])
+  useEffect(() => { similarPinsRef.current = similarPins }, [similarPins])
 
   /* Split recommendations: left-under vs right board (no duplicates) */
   const leftPins = useMemo(
@@ -81,16 +94,90 @@ export default function PinDetailView({
     [similarPins]
   )
 
-  // Fetch similar pins if not provided server-side
+  // ── Initial fetch: recommendations + likes in one round-trip ──────────
   useEffect(() => {
-    if (initialSimilarPins) return
     setLoadingSimilar(true)
-    fetch(`/api/pins/${pin.id}/similar`)
+    setSimilarPins([])
+    setLikesMap({})
+    setHasMore(true)
+    const tagParams = pin.tags?.map((t) => t.name).join(',') ?? ''
+    fetch(
+      `/api/pins/${pin.id}/similar?tags=${encodeURIComponent(tagParams)}&limit=${BATCH_SIZE}`
+    )
       .then((r) => r.json())
-      .then((d) => setSimilarPins(d.pins ?? []))
+      .then((d) => {
+        const pins: Pin[] = d.pins ?? []
+        const likes: Record<string, { likeCount: number; likedByMe: boolean }> =
+          d.likes ?? {}
+        startTransition(() => {
+          setSimilarPins(pins)
+          setLikesMap(likes)
+          setHasMore(pins.length >= BATCH_SIZE)
+        })
+      })
       .catch(() => {})
       .finally(() => setLoadingSimilar(false))
-  }, [pin.id, initialSimilarPins])
+  }, [pin.id, pin.tags])
+
+  // ── Load more (cursor-based infinite scroll) ─────────────────────────
+  const loadMore = useCallback(async () => {
+    if (loadingMoreRef.current || !hasMoreRef.current) return
+    const pins = similarPinsRef.current
+    if (pins.length === 0) return
+
+    setLoadingMore(true)
+    loadingMoreRef.current = true
+
+    const cursor = pins[pins.length - 1].created_at
+    try {
+      const res = await fetch(
+        `/api/pins/${pin.id}/similar?limit=${BATCH_SIZE}&cursor=${encodeURIComponent(cursor)}`
+      )
+      const d = await res.json()
+      const newPins: Pin[] = d.pins ?? []
+      const newLikes: Record<string, { likeCount: number; likedByMe: boolean }> =
+        d.likes ?? {}
+
+      if (newPins.length === 0) {
+        setHasMore(false)
+      } else {
+        startTransition(() => {
+          setSimilarPins((prev) => {
+            const ids = new Set(prev.map((p) => p.id))
+            return [...prev, ...newPins.filter((p) => !ids.has(p.id))]
+          })
+          setLikesMap((prev) => ({ ...prev, ...newLikes }))
+          setHasMore(newPins.length >= BATCH_SIZE)
+        })
+      }
+    } catch {
+      // silently fail — user can scroll again to retry
+    } finally {
+      setLoadingMore(false)
+      loadingMoreRef.current = false
+    }
+  }, [pin.id])
+
+  // ── IntersectionObserver for infinite scroll ─────────────────────────
+  useEffect(() => {
+    const sentinel = sentinelRef.current
+    if (!sentinel) return
+    const observer = new IntersectionObserver(
+      ([entry]) => {
+        if (
+          entry.isIntersecting &&
+          hasMoreRef.current &&
+          !loadingMoreRef.current &&
+          !loadingSimilarRef.current
+        ) {
+          loadMore()
+        }
+      },
+      { rootMargin: '600px' }
+    )
+    observer.observe(sentinel)
+    return () => observer.disconnect()
+  }, [loadMore])
 
   // Auth check
   useEffect(() => {
@@ -150,6 +237,8 @@ export default function PinDetailView({
         .pin-masonry > * {
           break-inside: avoid;
           margin-bottom: 14px;
+          content-visibility: auto;
+          contain-intrinsic-size: auto 280px;
         }
         .desktop-only { display: none; }
         .mobile-only  { display: block; }
@@ -435,7 +524,12 @@ export default function PinDetailView({
               <div className="pin-masonry">
                 {leftPins.map((p) => (
                   <div key={p.id}>
-                    <PinCard pin={p} currentUserId={userId ?? undefined} />
+                    <PinCard
+                      pin={p}
+                      currentUserId={userId ?? undefined}
+                      initialLikeCount={likesMap[p.id]?.likeCount}
+                      initialLikedByMe={likesMap[p.id]?.likedByMe}
+                    />
                   </div>
                 ))}
               </div>
@@ -467,7 +561,12 @@ export default function PinDetailView({
             <div className="pin-masonry">
               {rightPins.map((p) => (
                 <div key={p.id}>
-                  <PinCard pin={p} currentUserId={userId ?? undefined} />
+                  <PinCard
+                    pin={p}
+                    currentUserId={userId ?? undefined}
+                    initialLikeCount={likesMap[p.id]?.likeCount}
+                    initialLikedByMe={likesMap[p.id]?.likedByMe}
+                  />
                 </div>
               ))}
             </div>
@@ -475,6 +574,14 @@ export default function PinDetailView({
             <p style={{ color: 'var(--muted)', fontSize: '0.875rem' }}>
               No similar pins found.
             </p>
+          )}
+          {/* Loading-more skeletons (desktop) */}
+          {loadingMore && (
+            <div className="pin-masonry" style={{ marginTop: 14 }}>
+              {Array.from({ length: 6 }).map((_, i) => (
+                <div key={`more-d-${i}`} className="animate-pulse" style={{ height: 140 + (i % 3) * 60, borderRadius: 16, background: 'var(--menthe-light)', opacity: 0.4 }} />
+              ))}
+            </div>
           )}
         </div>
 
@@ -493,7 +600,12 @@ export default function PinDetailView({
             <div className="pin-masonry">
               {similarPins.map((p) => (
                 <div key={p.id}>
-                  <PinCard pin={p} currentUserId={userId ?? undefined} />
+                  <PinCard
+                    pin={p}
+                    currentUserId={userId ?? undefined}
+                    initialLikeCount={likesMap[p.id]?.likeCount}
+                    initialLikedByMe={likesMap[p.id]?.likedByMe}
+                  />
                 </div>
               ))}
             </div>
@@ -502,8 +614,36 @@ export default function PinDetailView({
               No similar pins found.
             </p>
           )}
+          {/* Loading-more skeletons (mobile) */}
+          {loadingMore && (
+            <div className="pin-masonry" style={{ marginTop: 14 }}>
+              {Array.from({ length: 4 }).map((_, i) => (
+                <div key={`more-m-${i}`} className="animate-pulse" style={{ height: 140 + (i % 3) * 60, borderRadius: 16, background: 'var(--menthe-light)', opacity: 0.4 }} />
+              ))}
+            </div>
+          )}
         </div>
       </div>
+
+      {/* Infinite-scroll sentinel — below the entire grid, triggers loadMore */}
+      <div ref={sentinelRef} style={{ height: 1 }} />
+
+      {/* End of recommendations */}
+      {!hasMore && !loadingSimilar && similarPins.length > 0 && (
+        <div style={{
+          display: 'flex',
+          alignItems: 'center',
+          gap: 16,
+          margin: '24px 0 8px',
+          color: 'var(--muted)',
+        }}>
+          <div style={{ flex: 1, height: 1, background: 'var(--border)' }} />
+          <span style={{ fontSize: '0.8125rem', fontWeight: 600, color: 'var(--muted)', whiteSpace: 'nowrap' }}>
+            You&apos;ve seen it all
+          </span>
+          <div style={{ flex: 1, height: 1, background: 'var(--border)' }} />
+        </div>
+      )}
     </>
   )
 }
