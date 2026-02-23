@@ -518,9 +518,6 @@ export default function PinDetailView({
           {/* ── Left-under suggestions (desktop only) ── */}
           {!loadingSimilar && leftPins.length > 0 && (
             <div className="desktop-only" style={{ marginTop: 12 }}>
-              <h3 style={{ fontSize: '1rem', fontWeight: 700, color: 'var(--text)', margin: '0 0 12px' }}>
-                You might also like
-              </h3>
               <div className="pin-masonry">
                 {leftPins.map((p) => (
                   <div key={p.id}>
