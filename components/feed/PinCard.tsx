@@ -1,6 +1,6 @@
 'use client'
 
-import { useState, useEffect, useRef } from 'react'
+import { useState, useEffect, useRef, memo } from 'react'
 import Image from 'next/image'
 import Link from 'next/link'
 import { useRouter } from 'next/navigation'
@@ -138,7 +138,7 @@ interface PinCardProps {
   onAuthRequired?: () => void
 }
 
-export default function PinCard({ pin: initialPin, onSave, currentUserId, onDelete, onUnsave, onEdit, onAdminDelete, onFeatureToggle, isAdmin, initialSaved, initialLikeCount, initialLikedByMe, onAuthRequired }: PinCardProps) {
+export default memo(function PinCard({ pin: initialPin, onSave, currentUserId, onDelete, onUnsave, onEdit, onAdminDelete, onFeatureToggle, isAdmin, initialSaved, initialLikeCount, initialLikedByMe, onAuthRequired }: PinCardProps) {
   const router = useRouter()
   const [pin, setPin] = useState(initialPin)
   const [hovered, setHovered] = useState(false)
@@ -346,32 +346,34 @@ export default function PinCard({ pin: initialPin, onSave, currentUserId, onDele
               transition: 'opacity 200ms',
             }}
           >
-            {/* Save / unsave button */}
-            <button
-              type="button"
-              onClick={handleSaveClick}
-              disabled={saving || unsaving}
-              style={{
-                display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 4,
-                borderRadius: 14, padding: '5px 12px',
-                fontSize: '0.75rem', fontWeight: 700, color: '#fff',
-                border: 'none',
-                background: saved ? 'var(--menthe)' : 'var(--verveine)',
-                cursor: (saving || unsaving) ? 'not-allowed' : 'pointer',
-                transition: 'background 200ms',
-              }}
-              onMouseEnter={e => { if (!saved) (e.currentTarget as HTMLElement).style.background = 'var(--menthe)' }}
-              onMouseLeave={e => { if (!saved) (e.currentTarget as HTMLElement).style.background = 'var(--verveine)' }}
-            >
-              {(saving || unsaving) ? (
-                <span style={{ width: 10, height: 10, borderRadius: '50%', border: '2px solid rgba(255,255,255,0.4)', borderTopColor: '#fff', animation: 'spin .7s linear infinite', display: 'inline-block' }} />
-              ) : saved ? (
-                <>
-                  <svg width="10" height="10" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="3" strokeLinecap="round" strokeLinejoin="round"><polyline points="20 6 9 17 4 12"/></svg>
-                  Saved
-                </>
-              ) : 'Save'}
-            </button>
+            {/* Save / unsave button — hidden on Saved board (X button is the only remove control there) */}
+            {!onUnsave && (
+              <button
+                type="button"
+                onClick={handleSaveClick}
+                disabled={saving || unsaving}
+                style={{
+                  display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 4,
+                  borderRadius: 14, padding: '5px 12px',
+                  fontSize: '0.75rem', fontWeight: 700, color: '#fff',
+                  border: 'none',
+                  background: saved ? 'var(--menthe)' : 'var(--verveine)',
+                  cursor: (saving || unsaving) ? 'not-allowed' : 'pointer',
+                  transition: 'background 200ms',
+                }}
+                onMouseEnter={e => { if (!saved) (e.currentTarget as HTMLElement).style.background = 'var(--menthe)' }}
+                onMouseLeave={e => { if (!saved) (e.currentTarget as HTMLElement).style.background = 'var(--verveine)' }}
+              >
+                {(saving || unsaving) ? (
+                  <span style={{ width: 10, height: 10, borderRadius: '50%', border: '2px solid rgba(255,255,255,0.4)', borderTopColor: '#fff', animation: 'spin .7s linear infinite', display: 'inline-block' }} />
+                ) : saved ? (
+                  <>
+                    <svg width="10" height="10" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="3" strokeLinecap="round" strokeLinejoin="round"><polyline points="20 6 9 17 4 12"/></svg>
+                    Saved
+                  </>
+                ) : 'Save'}
+              </button>
+            )}
 
             {/* Admin feature toggle */}
             {isAdmin && (
@@ -647,4 +649,4 @@ export default function PinCard({ pin: initialPin, onSave, currentUserId, onDele
       )}
     </div>
   )
-}
+})
