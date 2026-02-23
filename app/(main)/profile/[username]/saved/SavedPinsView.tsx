@@ -1,6 +1,7 @@
 'use client'
 
 import { useState } from 'react'
+import { useRouter } from 'next/navigation'
 import Link from 'next/link'
 import Image from 'next/image'
 import type { Pin } from '@/types'
@@ -19,6 +20,7 @@ function PinItem({
   removing: boolean
   onRemove: () => void
 }) {
+  const router = useRouter()
   const [hovered, setHovered] = useState(false)
 
   return (
@@ -27,15 +29,20 @@ function PinItem({
       onMouseEnter={() => setHovered(true)}
       onMouseLeave={() => setHovered(false)}
     >
-      <Link href={`/pin/${pin.id}`} scroll={false}>
-        <div style={{
-          position: 'relative', overflow: 'hidden',
+      <div
+        role="link"
+        tabIndex={0}
+        onClick={() => router.push(`/pin/${pin.id}`)}
+        onKeyDown={(e) => { if (e.key === 'Enter') router.push(`/pin/${pin.id}`) }}
+        style={{
+          position: 'relative', overflow: 'hidden', cursor: 'pointer',
           borderRadius: 16, border: '1.5px solid var(--border)',
           background: 'var(--bg)',
           transition: 'border-color 150ms, transform 200ms, box-shadow 200ms',
           transform: hovered ? 'translateY(-3px)' : 'none',
           boxShadow: hovered ? '0 8px 24px rgba(0,0,0,0.10)' : '0 1px 4px rgba(0,0,0,0.04)',
-        }}>
+        }}
+      >
           <Image
             src={pin.thumbnail_url}
             alt={pin.title || 'Pin'}
@@ -48,7 +55,7 @@ function PinItem({
           {/* Remove button — owner only */}
           {isOwner && (
             <button
-              onClick={(e) => { e.preventDefault(); e.stopPropagation(); onRemove() }}
+              onClick={(e) => { e.stopPropagation(); onRemove() }}
               disabled={removing}
               style={{
                 position: 'absolute', top: 8, right: 8,
@@ -106,8 +113,7 @@ function PinItem({
               Live
             </a>
           )}
-        </div>
-      </Link>
+      </div>
       {pin.title && (
         <p style={{ marginTop: 6, padding: '0 4px', fontSize: '0.8125rem', fontWeight: 600, color: 'var(--text)', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
           {pin.title}
