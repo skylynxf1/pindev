@@ -29,9 +29,10 @@ export default async function SearchPage({ searchParams }: PageProps) {
   const { q = '', tag = '' } = await searchParams
   const supabase = await createClient()
 
-  const [pinsResult, tagsResult] = await Promise.all([
+  const [pinsResult, tagsResult, { data: { user } }] = await Promise.all([
     searchPins(supabase, { keyword: q, tag, limit: 20 }),
     getPopularTags(supabase, 40),
+    supabase.auth.getUser(),
   ])
 
   const initialPins: DbPinWithRelations[] = pinsResult.data ?? []
@@ -46,6 +47,7 @@ export default async function SearchPage({ searchParams }: PageProps) {
             popularTags={popularTags}
             initialKeyword={q}
             initialTag={tag}
+            currentUserId={user?.id}
           />
         </Suspense>
       </div>

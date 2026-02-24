@@ -7,11 +7,10 @@ import {
   useRef,
   useTransition,
 } from 'react'
-import { useRouter, useSearchParams, usePathname } from 'next/navigation'
-import Image from 'next/image'
-import Link from 'next/link'
+import { useSearchParams, usePathname, useRouter } from 'next/navigation'
+import PinCard from '@/components/feed/PinCard'
 import TagPills from '@/components/pin/TagPills'
-import BoardPickerModal from '@/components/boards/BoardPickerModal'
+import { PLACEHOLDER_HEIGHTS } from '@/components/feed/PlaceholderCard'
 import type { DbPinWithRelations, DbTag } from '@/lib/db/types'
 import type { Pin } from '@/types'
 
@@ -20,121 +19,16 @@ interface SearchResultsProps {
   popularTags: (DbTag & { count: number })[]
   initialKeyword: string
   initialTag: string
+  currentUserId?: string
 }
 
-// ── tiny helpers ──────────────────────────────────────────────────────────────
+// ── helpers ──────────────────────────────────────────────────────────────────
 
 function dbPinToPin(p: DbPinWithRelations): Pin {
-  return {
-    ...p,
-    profile: p.profile ?? undefined,
-    tags: p.tags,
-  }
+  return { ...p, profile: p.profile ?? undefined, tags: p.tags }
 }
 
-function ResultCard({
-  pin,
-  onSave,
-}: {
-  pin: DbPinWithRelations
-  onSave: (pin: Pin) => void
-}) {
-  const [hovered, setHovered] = useState(false)
-  const [imgError, setImgError] = useState(false)
-
-  return (
-    <div
-      className="group relative break-inside-avoid mb-4 rounded-2xl overflow-hidden border border-[#E6ECEA] bg-white shadow-sm hover:shadow-md transition-shadow"
-      onMouseEnter={() => setHovered(true)}
-      onMouseLeave={() => setHovered(false)}
-    >
-      <Link href={`/pin/${pin.id}`} scroll={false}>
-        <div className="relative overflow-hidden bg-[#C2F2E4]/20" style={{ aspectRatio: '4/3' }}>
-          <Image
-            src={imgError ? '/placeholder.png' : pin.thumbnail_url}
-            alt={pin.title || 'Project preview'}
-            fill
-            sizes="(max-width: 640px) 100vw, (max-width: 1200px) 50vw, 25vw"
-            className="object-cover object-center"
-            onError={() => setImgError(true)}
-            unoptimized
-          />
-          {pin.media_type === 'video' && (
-            <span className="absolute bottom-2 left-2 rounded-full bg-black/60 px-2 py-0.5 text-[10px] font-medium text-white">
-              VIDEO
-            </span>
-          )}
-          <div
-            className={`absolute inset-0 bg-black/20 transition-opacity duration-150 ${hovered ? 'opacity-100' : 'opacity-0'}`}
-          />
-          <button
-            onClick={(e) => {
-              e.preventDefault()
-              e.stopPropagation()
-              onSave(dbPinToPin(pin))
-            }}
-            className={`absolute top-3 right-3 rounded-full bg-[#35C8B4] px-4 py-2 text-xs font-bold text-white shadow
-              hover:bg-[#A4CF4A] transition-all duration-150
-              ${hovered ? 'opacity-100 translate-y-0' : 'opacity-0 -translate-y-1'}`}
-          >
-            Save
-          </button>
-        </div>
-      </Link>
-
-      {/* Card footer */}
-      <div className="px-3 py-2.5">
-        {pin.title && (
-          <Link href={`/pin/${pin.id}`} scroll={false}>
-            <p className="text-sm font-semibold text-[#0F1720] truncate hover:text-[#35C8B4] transition-colors">
-              {pin.title}
-            </p>
-          </Link>
-        )}
-        {pin.description && (
-          <p className="mt-0.5 text-xs text-[#5B6B73] line-clamp-2 leading-relaxed">
-            {pin.description}
-          </p>
-        )}
-        {pin.tags.length > 0 && (
-          <div className="mt-2">
-            <TagPills
-              tags={pin.tags}
-              navigable
-              size="sm"
-            />
-          </div>
-        )}
-        {pin.profile && (
-          <Link
-            href={`/profile/${pin.profile.username}`}
-            className="mt-2 flex items-center gap-1.5 group/author"
-          >
-            <div className="h-5 w-5 rounded-full bg-[#C2F2E4] flex items-center justify-center text-[10px] font-bold text-[#35C8B4] overflow-hidden flex-shrink-0">
-              {pin.profile.avatar_url ? (
-                <Image
-                  src={pin.profile.avatar_url}
-                  alt={pin.profile.display_name || pin.profile.username}
-                  width={20}
-                  height={20}
-                  className="h-full w-full object-cover"
-                  unoptimized
-                />
-              ) : (
-                (pin.profile.display_name || pin.profile.username)
-                  .charAt(0)
-                  .toUpperCase()
-              )}
-            </div>
-            <span className="text-xs text-[#5B6B73] group-hover/author:text-[#35C8B4] transition-colors truncate">
-              {pin.profile.display_name || pin.profile.username}
-            </span>
-          </Link>
-        )}
-      </div>
-    </div>
-  )
-}
+const SPACING = [14, 18, 16, 20, 14, 16, 18, 14]
 
 // ── Main client component ─────────────────────────────────────────────────────
 
@@ -143,6 +37,7 @@ export default function SearchResults({
   popularTags,
   initialKeyword,
   initialTag,
+  currentUserId,
 }: SearchResultsProps) {
   const router = useRouter()
   const pathname = usePathname()
@@ -155,18 +50,30 @@ export default function SearchResults({
   const [pins, setPins] = useState<DbPinWithRelations[]>(initialPins)
   const [loading, setLoading] = useState(false)
   const [error, setError] = useState<string | null>(null)
-  const [cursor, setCursor] = useState<string | null>(
-    initialPins.length === 20 ? (initialPins[initialPins.length - 1]?.created_at ?? null) : null
-  )
+  const [offset, setOffset] = useState(initialPins.length)
   const [hasMore, setHasMore] = useState(initialPins.length === 20)
-  const [pinToSave, setPinToSave] = useState<Pin | null>(null)
+  const [cols, setCols] = useState(4)
 
-  // Track the query that produced the current results so we know when to reset
   const currentQueryRef = useRef({ keyword: initialKeyword, tag: initialTag })
-
   const sentinelRef = useRef<HTMLDivElement>(null)
   const inputRef = useRef<HTMLInputElement>(null)
   const debounceRef = useRef<ReturnType<typeof setTimeout> | null>(null)
+
+  // ── Responsive columns ─────────────────────────────────────────────────────
+  useEffect(() => {
+    const update = () => {
+      const w = window.innerWidth
+      if (w < 640) setCols(1)
+      else if (w < 900) setCols(2)
+      else if (w < 1200) setCols(3)
+      else if (w < 1500) setCols(4)
+      else if (w < 1800) setCols(5)
+      else setCols(6)
+    }
+    update()
+    window.addEventListener('resize', update)
+    return () => window.removeEventListener('resize', update)
+  }, [])
 
   // ── Sync URL → state when user navigates back/forward ─────────────────────
   useEffect(() => {
@@ -176,7 +83,7 @@ export default function SearchResults({
     setActiveTag(t)
   }, [searchParams])
 
-  // ── Push URL changes (debounced for keyword, immediate for tag) ────────────
+  // ── Push URL changes ────────────────────────────────────────────────────────
   function pushUrl(kw: string, tg: string) {
     const params = new URLSearchParams()
     if (kw) params.set('q', kw)
@@ -187,16 +94,16 @@ export default function SearchResults({
     })
   }
 
-  // ── Fetch a page of results ────────────────────────────────────────────────
+  // ── Fetch results ──────────────────────────────────────────────────────────
   const fetchResults = useCallback(
-    async (kw: string, tg: string, cur: string | null, append: boolean) => {
+    async (kw: string, tg: string, off: number, append: boolean) => {
       setLoading(true)
       setError(null)
 
       const params = new URLSearchParams()
       if (kw) params.set('q', kw)
       if (tg) params.set('tag', tg)
-      if (cur) params.set('cursor', cur)
+      params.set('offset', String(off))
       params.set('limit', '20')
 
       const res = await fetch(`/api/search/pins?${params.toString()}`)
@@ -209,24 +116,23 @@ export default function SearchResults({
       const json = await res.json()
       const rows: DbPinWithRelations[] = json.pins ?? []
 
-      setPins((prev) => (append ? [...prev, ...rows] : rows))
-      const nextCursor =
-        rows.length === 20 ? (rows[rows.length - 1]?.created_at ?? null) : null
-      setCursor(nextCursor)
-      setHasMore(rows.length === 20)
+      setPins(prev => (append ? [...prev, ...rows] : rows))
+      const newOffset = append ? off + rows.length : rows.length
+      setOffset(newOffset)
+      setHasMore(json.hasMore ?? rows.length === 20)
       setLoading(false)
     },
     []
   )
 
-  // ── Handle keyword input ───────────────────────────────────────────────────
+  // ── Keyword input ─────────────────────────────────────────────────────────
   function handleKeywordChange(value: string) {
     setKeyword(value)
     if (debounceRef.current) clearTimeout(debounceRef.current)
     debounceRef.current = setTimeout(() => {
       currentQueryRef.current = { keyword: value, tag: activeTag }
       pushUrl(value, activeTag)
-      fetchResults(value, activeTag, null, false)
+      fetchResults(value, activeTag, 0, false)
     }, 350)
   }
 
@@ -235,48 +141,54 @@ export default function SearchResults({
     if (debounceRef.current) clearTimeout(debounceRef.current)
     currentQueryRef.current = { keyword, tag: activeTag }
     pushUrl(keyword, activeTag)
-    fetchResults(keyword, activeTag, null, false)
+    fetchResults(keyword, activeTag, 0, false)
   }
 
-  // ── Handle tag selection ───────────────────────────────────────────────────
+  // ── Tag selection ─────────────────────────────────────────────────────────
   function handleTagSelect(tag: string | null) {
     const next = tag ?? ''
     setActiveTag(next)
     currentQueryRef.current = { keyword, tag: next }
     pushUrl(keyword, next)
-    fetchResults(keyword, next, null, false)
+    fetchResults(keyword, next, 0, false)
   }
 
-  // ── Infinite scroll ────────────────────────────────────────────────────────
+  // ── Infinite scroll ───────────────────────────────────────────────────────
+  const hasMoreRef = useRef(hasMore)
+  const loadingRef = useRef(loading)
+  const offsetRef = useRef(offset)
+  useEffect(() => { hasMoreRef.current = hasMore }, [hasMore])
+  useEffect(() => { loadingRef.current = loading }, [loading])
+  useEffect(() => { offsetRef.current = offset }, [offset])
+
   useEffect(() => {
     const sentinel = sentinelRef.current
     if (!sentinel) return
-
     const observer = new IntersectionObserver(
       (entries) => {
-        if (entries[0].isIntersecting && hasMore && !loading) {
+        if (entries[0].isIntersecting && hasMoreRef.current && !loadingRef.current) {
           const { keyword: kw, tag: tg } = currentQueryRef.current
-          fetchResults(kw, tg, cursor, true)
+          fetchResults(kw, tg, offsetRef.current, true)
         }
       },
       { rootMargin: '400px' }
     )
-
     observer.observe(sentinel)
     return () => observer.disconnect()
-  }, [hasMore, loading, cursor, fetchResults])
+  }, [fetchResults])
 
-  // ── Clear search ───────────────────────────────────────────────────────────
+  // ── Clear search ──────────────────────────────────────────────────────────
   function handleClear() {
     setKeyword('')
     setActiveTag('')
     currentQueryRef.current = { keyword: '', tag: '' }
     pushUrl('', '')
-    fetchResults('', '', null, false)
+    fetchResults('', '', 0, false)
     inputRef.current?.focus()
   }
 
   const hasQuery = keyword.trim() || activeTag
+  const gridStyle: React.CSSProperties = { columns: cols, columnGap: 16 }
 
   return (
     <>
@@ -341,7 +253,7 @@ export default function SearchResults({
             <span className="text-sm text-[#5B6B73]">Showing results for</span>
             {keyword && (
               <span className="rounded-full bg-[#EDF7BE] border border-[#A4CF4A] px-3 py-1 text-xs font-semibold text-[#0F1720]">
-                "{keyword}"
+                &quot;{keyword}&quot;
               </span>
             )}
             {activeTag && (
@@ -359,7 +271,7 @@ export default function SearchResults({
         )}
       </div>
 
-      {/* ── Results grid ── */}
+      {/* ── Empty state ── */}
       {!loading && !error && pins.length === 0 && (
         <div className="flex flex-col items-center justify-center py-28 text-center">
           <div className="mb-4 flex h-16 w-16 items-center justify-center rounded-full bg-[#C2F2E4]">
@@ -375,55 +287,61 @@ export default function SearchResults({
         </div>
       )}
 
+      {/* ── Error ── */}
       {error && (
         <div className="mb-6 rounded-2xl border border-red-200 bg-red-50 px-5 py-4 text-sm text-red-600">
           {error}
         </div>
       )}
 
+      {/* ── Results masonry grid — same PinCard as landing page ── */}
       {pins.length > 0 && (
-        <div className="columns-1 sm:columns-2 md:columns-3 lg:columns-4 xl:columns-5 gap-4">
-          {pins.map((pin) => (
-            <ResultCard key={pin.id} pin={pin} onSave={setPinToSave} />
+        <div style={gridStyle}>
+          {pins.map((dbPin, i) => (
+            <div
+              key={dbPin.id}
+              style={{
+                marginBottom: SPACING[i % SPACING.length],
+                breakInside: 'avoid',
+                pageBreakInside: 'avoid',
+              }}
+            >
+              <PinCard
+                pin={dbPinToPin(dbPin)}
+                currentUserId={currentUserId}
+              />
+            </div>
           ))}
         </div>
       )}
 
       {/* Infinite scroll sentinel */}
-      <div ref={sentinelRef} className="h-px" />
+      <div ref={sentinelRef} style={{ height: 1 }} />
 
-      {/* Loading skeletons for next page */}
-      {loading && pins.length > 0 && (
-        <div className="columns-1 sm:columns-2 md:columns-3 lg:columns-4 xl:columns-5 gap-4 mt-4">
-          {Array.from({ length: 8 }).map((_, i) => (
+      {/* Loading skeletons */}
+      {loading && (
+        <div style={{ ...gridStyle, marginTop: pins.length > 0 ? 16 : 0 }}>
+          {Array.from({ length: cols * 3 }).map((_, i) => (
             <div
               key={i}
-              className="mb-4 break-inside-avoid rounded-2xl bg-[#C2F2E4]/30 animate-pulse"
-              style={{ height: `${180 + (i % 3) * 60}px` }}
+              className="animate-pulse"
+              style={{
+                marginBottom: SPACING[i % SPACING.length],
+                breakInside: 'avoid',
+                height: PLACEHOLDER_HEIGHTS[i % PLACEHOLDER_HEIGHTS.length],
+                borderRadius: 18,
+                background: 'var(--menthe-light)',
+                opacity: 0.45,
+              }}
             />
           ))}
         </div>
       )}
 
-      {/* Initial loading (no results yet) */}
-      {loading && pins.length === 0 && (
-        <div className="flex items-center justify-center py-20">
-          <span className="h-8 w-8 rounded-full border-4 border-[#C2F2E4] border-t-[#35C8B4] animate-spin" />
-        </div>
-      )}
-
       {!hasMore && pins.length > 0 && (
         <p className="py-12 text-center text-sm text-[#5B6B73]">
-          End of results ✦
+          End of results
         </p>
-      )}
-
-      {/* Save modal */}
-      {pinToSave && (
-        <BoardPickerModal
-          pin={pinToSave}
-          onClose={() => setPinToSave(null)}
-        />
       )}
     </>
   )

@@ -7,7 +7,7 @@ import type {
 } from './types'
 
 const DEFAULT_LIMIT = 20
-const MAX_LIMIT = 50
+const MAX_LIMIT = 200
 
 // ── Internal row normaliser ───────────────────────────────────────────────────
 // Supabase returns joined tables as nested objects or arrays depending on
@@ -111,9 +111,14 @@ export async function searchPins(
       .order('created_at', { ascending: false })
       .limit(limit)
 
-    // Cursor
+    // Cursor-based pagination
     if (params.cursor) {
       query = query.lt('created_at', params.cursor)
+    }
+
+    // Offset-based pagination
+    if (params.offset && params.offset > 0) {
+      query = query.range(params.offset, params.offset + limit - 1)
     }
 
     // Keyword — search title OR description with ILIKE

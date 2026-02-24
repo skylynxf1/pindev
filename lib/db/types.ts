@@ -70,6 +70,7 @@ export type PinSearchParams = {
   keyword?: string        // full-text search against title + description
   tag?: string            // single tag slug filter
   cursor?: string | null  // created_at cursor for pagination
+  offset?: number         // offset-based pagination
   limit?: number
 }
 
