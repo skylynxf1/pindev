@@ -27,6 +27,13 @@ export type DbPin = {
   is_published: boolean
   created_at: string
   updated_at: string
+  // ranking
+  likes_count: number
+  clicks_count: number
+  impressions_count: number
+  has_video: boolean
+  admin_pinned_position: number | null
+  admin_pinned_until: string | null
 }
 
 export type DbTag = {

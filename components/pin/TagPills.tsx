@@ -35,8 +35,6 @@ export default function TagPills({
 
   if (tags.length === 0) return null
 
-  const paddingClass = size === 'sm' ? 'px-2.5 py-1 text-[11px]' : 'px-3.5 py-1.5 text-xs'
-
   function handleClick(name: string) {
     if (onSelect) {
       // Controlled mode — let the parent decide
@@ -66,22 +64,20 @@ export default function TagPills({
             key={tag.id}
             type="button"
             onClick={() => handleClick(tag.name)}
-            className={`inline-flex items-center gap-1.5 rounded-full border font-medium transition-all
-              ${paddingClass}
-              ${isActive
-                ? 'border-[#35C8B4] bg-[#35C8B4] text-white shadow-sm'
-                : 'border-[#E6ECEA] bg-white text-[#0F1720] hover:border-[#35C8B4] hover:bg-[#C2F2E4]/30'
-              }`}
+            className={`tag-pill${isActive ? ' active' : ''}`}
           >
-            <span className={`${isActive ? 'text-white/70' : 'text-[#5B6B73]'} text-[10px]`}>
-              #
-            </span>
+            <span style={{ opacity: 0.5, fontSize: '0.6875rem' }}>#</span>
             {tag.name}
             {showCount && typeof tag.count === 'number' && (
-              <span
-                className={`rounded-full px-1.5 py-px text-[10px] font-bold
-                  ${isActive ? 'bg-white/20 text-white' : 'bg-[#C2F2E4] text-[#35C8B4]'}`}
-              >
+              <span style={{
+                borderRadius: 9999,
+                padding: '1px 5px',
+                fontSize: '0.625rem',
+                fontWeight: 700,
+                background: isActive ? 'rgba(255,255,255,0.2)' : 'var(--brume)',
+                color: isActive ? '#fff' : 'var(--menthe)',
+                marginLeft: 2,
+              }}>
                 {tag.count}
               </span>
             )}

@@ -1,13 +1,6 @@
 import { NextResponse } from "next/server";
 import { createAdminClient } from "@/lib/supabase/admin";
-
-function requireAgentSecret(req: Request) {
-  const header = req.headers.get("authorization") || "";
-  const token = header.startsWith("Bearer ") ? header.slice(7) : "";
-  const secret = process.env.PIN_AGENT_SECRET ?? "";
-  console.log("[ingest-github] token:", JSON.stringify(token), "secret:", JSON.stringify(secret), "match:", token === secret);
-  return token === secret;
-}
+import { requireAdmin } from "@/lib/auth/requireAdmin";
 
 function toTitleCase(str: string) {
   return str
@@ -22,7 +15,7 @@ function daysAgo(n: number): string {
 }
 
 export async function POST(req: Request) {
-  if (!requireAgentSecret(req)) {
+  if (!(await requireAdmin(req))) {
     return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
   }
 

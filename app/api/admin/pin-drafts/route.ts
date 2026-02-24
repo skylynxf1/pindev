@@ -1,18 +1,9 @@
 import { NextResponse } from "next/server";
 import { createAdminClient } from "@/lib/supabase/admin";
-
-// simple helper
-function requireAgentSecret(req: Request) {
-  const header = req.headers.get("authorization") || "";
-  const token = header.startsWith("Bearer ") ? header.slice(7) : "";
-  if (!process.env.PIN_AGENT_SECRET) throw new Error("Missing PIN_AGENT_SECRET");
-  if (token !== process.env.PIN_AGENT_SECRET) return false;
-  return true;
-}
+import { requireAdmin } from "@/lib/auth/requireAdmin";
 
 export async function POST(req: Request) {
-  // agent creates drafts (protected by secret)
-  if (!requireAgentSecret(req)) {
+  if (!(await requireAdmin(req))) {
     return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
   }
 
@@ -57,8 +48,7 @@ export async function POST(req: Request) {
 }
 
 export async function GET(req: Request) {
-  // admin UI calls this (secret-protected for now; later you can do role-based auth)
-  if (!requireAgentSecret(req)) {
+  if (!(await requireAdmin(req))) {
     return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
   }
 

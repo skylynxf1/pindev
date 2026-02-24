@@ -23,6 +23,13 @@ export type Pin = {
   featured_until?: string | null
   created_at: string
   updated_at: string
+  // ranking
+  likes_count?: number
+  clicks_count?: number
+  impressions_count?: number
+  has_video?: boolean
+  admin_pinned_position?: number | null
+  admin_pinned_until?: string | null
   // joined
   profile?: Pick<Profile, 'username' | 'display_name' | 'avatar_url'>
   tags?: Tag[]

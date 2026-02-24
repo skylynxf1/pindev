@@ -234,7 +234,7 @@ input[type="search"]::-webkit-search-decoration { -webkit-appearance: none; }
   .bottom-sheet { animation: sheetUp 300ms cubic-bezier(.34,1.2,.64,1) both; }
 }
 
-/* Pin fall-in (used by LandingAnimation reveal) */
+/* Pin fall-in (landing animation reveal) */
 body.intro-active [data-pin-item] { opacity: 0; }
 @keyframes pinFallIn {
   0%   { opacity: 0; transform: translateY(-18px) scale(0.97); }
@@ -244,6 +244,18 @@ body.intro-active [data-pin-item] { opacity: 0; }
 }
 .pin-fall-in {
   animation: pinFallIn 0.35s cubic-bezier(.34,1.56,.64,1) both;
+}
+
+/* Pin slide-up (scroll-load reveal) */
+@keyframes pinSlideUp {
+  from { opacity: 0; transform: translateY(14px) scale(0.98); }
+  to   { opacity: 1; transform: translateY(0)    scale(1); }
+}
+
+/* Applied per-pin to trigger slide-up; fill-mode both starts at opacity 0.
+   Safe fallback: if keyframe not found, no animation and pin stays visible. */
+.pin-stagger {
+  animation: pinSlideUp 0.42s cubic-bezier(.22,1,.36,1) both;
 }
 
 /* Spin */

@@ -22,15 +22,37 @@ interface SearchResultsProps {
   currentUserId?: string
 }
 
-// ── helpers ──────────────────────────────────────────────────────────────────
-
 function dbPinToPin(p: DbPinWithRelations): Pin {
   return { ...p, profile: p.profile ?? undefined, tags: p.tags }
 }
 
 const SPACING = [14, 18, 16, 20, 14, 16, 18, 14]
 
-// ── Main client component ─────────────────────────────────────────────────────
+// ── localStorage helpers for frequent-keyword tracking ───────────────────────
+
+function getSearchCounts(): Record<string, number> {
+  try { return JSON.parse(localStorage.getItem('pindev_search_counts') ?? '{}') }
+  catch { return {} }
+}
+
+function incrementSearchCount(kw: string) {
+  const k = kw.trim().toLowerCase()
+  if (k.length < 2) return
+  const counts = getSearchCounts()
+  counts[k] = (counts[k] ?? 0) + 1
+  localStorage.setItem('pindev_search_counts', JSON.stringify(counts))
+}
+
+function getFrequentKeywords(exclude: string[]): string[] {
+  const lower = exclude.map(s => s.toLowerCase())
+  return Object.entries(getSearchCounts())
+    .filter(([kw, n]) => n > 3 && !lower.includes(kw))
+    .sort(([, a], [, b]) => b - a)
+    .slice(0, 8)
+    .map(([kw]) => kw)
+}
+
+// ── Main component ────────────────────────────────────────────────────────────
 
 export default function SearchResults({
   initialPins,
@@ -42,9 +64,8 @@ export default function SearchResults({
   const router = useRouter()
   const pathname = usePathname()
   const searchParams = useSearchParams()
-  const [isPending, startTransition] = useTransition()
+  const [, startTransition] = useTransition()
 
-  // ── Local state ────────────────────────────────────────────────────────────
   const [keyword, setKeyword] = useState(initialKeyword)
   const [activeTag, setActiveTag] = useState<string>(initialTag)
   const [pins, setPins] = useState<DbPinWithRelations[]>(initialPins)
@@ -53,13 +74,18 @@ export default function SearchResults({
   const [offset, setOffset] = useState(initialPins.length)
   const [hasMore, setHasMore] = useState(initialPins.length === 20)
   const [cols, setCols] = useState(4)
+  const [frequentKeywords, setFrequentKeywords] = useState<string[]>([])
 
   const currentQueryRef = useRef({ keyword: initialKeyword, tag: initialTag })
   const sentinelRef = useRef<HTMLDivElement>(null)
-  const inputRef = useRef<HTMLInputElement>(null)
-  const debounceRef = useRef<ReturnType<typeof setTimeout> | null>(null)
+  const isFirstRender = useRef(true)
 
-  // ── Responsive columns ─────────────────────────────────────────────────────
+  // Load frequent keywords from localStorage on mount
+  useEffect(() => {
+    setFrequentKeywords(getFrequentKeywords(popularTags.map(t => t.name)))
+  }, [popularTags])
+
+  // ── Responsive columns ──────────────────────────────────────────────────────
   useEffect(() => {
     const update = () => {
       const w = window.innerWidth
@@ -75,26 +101,7 @@ export default function SearchResults({
     return () => window.removeEventListener('resize', update)
   }, [])
 
-  // ── Sync URL → state when user navigates back/forward ─────────────────────
-  useEffect(() => {
-    const q = searchParams.get('q') ?? ''
-    const t = searchParams.get('tag') ?? ''
-    setKeyword(q)
-    setActiveTag(t)
-  }, [searchParams])
-
-  // ── Push URL changes ────────────────────────────────────────────────────────
-  function pushUrl(kw: string, tg: string) {
-    const params = new URLSearchParams()
-    if (kw) params.set('q', kw)
-    if (tg) params.set('tag', tg)
-    const qs = params.toString()
-    startTransition(() => {
-      router.push(`${pathname}${qs ? `?${qs}` : ''}`, { scroll: false })
-    })
-  }
-
-  // ── Fetch results ──────────────────────────────────────────────────────────
+  // ── Fetch results ───────────────────────────────────────────────────────────
   const fetchResults = useCallback(
     async (kw: string, tg: string, off: number, append: boolean) => {
       setLoading(true)
@@ -117,43 +124,60 @@ export default function SearchResults({
       const rows: DbPinWithRelations[] = json.pins ?? []
 
       setPins(prev => (append ? [...prev, ...rows] : rows))
-      const newOffset = append ? off + rows.length : rows.length
-      setOffset(newOffset)
+      setOffset(append ? off + rows.length : rows.length)
       setHasMore(json.hasMore ?? rows.length === 20)
       setLoading(false)
     },
     []
   )
 
-  // ── Keyword input ─────────────────────────────────────────────────────────
-  function handleKeywordChange(value: string) {
-    setKeyword(value)
-    if (debounceRef.current) clearTimeout(debounceRef.current)
-    debounceRef.current = setTimeout(() => {
-      currentQueryRef.current = { keyword: value, tag: activeTag }
-      pushUrl(value, activeTag)
-      fetchResults(value, activeTag, 0, false)
-    }, 350)
+  // ── Sync URL → state; only fetch after first render (SSR handles initial load)
+  useEffect(() => {
+    const q = searchParams.get('q') ?? ''
+    const t = searchParams.get('tag') ?? ''
+
+    setKeyword(q)
+    setActiveTag(t)
+    currentQueryRef.current = { keyword: q, tag: t }
+
+    if (isFirstRender.current) {
+      isFirstRender.current = false
+      return // use SSR-loaded initialPins on first render
+    }
+
+    // Track keyword frequency
+    if (q) {
+      incrementSearchCount(q)
+      setFrequentKeywords(getFrequentKeywords(popularTags.map(p => p.name)))
+    }
+
+    fetchResults(q, t, 0, false)
+  }, [searchParams]) // eslint-disable-line react-hooks/exhaustive-deps
+
+  // ── Push URL (tag clicks, clear) — fetch triggered by searchParams effect ───
+  function pushUrl(kw: string, tg: string) {
+    const params = new URLSearchParams()
+    if (kw) params.set('q', kw)
+    if (tg) params.set('tag', tg)
+    const qs = params.toString()
+    startTransition(() => {
+      router.push(`${pathname}${qs ? `?${qs}` : ''}`, { scroll: false })
+    })
   }
 
-  function handleKeywordSubmit(e: React.FormEvent) {
-    e.preventDefault()
-    if (debounceRef.current) clearTimeout(debounceRef.current)
-    currentQueryRef.current = { keyword, tag: activeTag }
-    pushUrl(keyword, activeTag)
-    fetchResults(keyword, activeTag, 0, false)
-  }
-
-  // ── Tag selection ─────────────────────────────────────────────────────────
   function handleTagSelect(tag: string | null) {
-    const next = tag ?? ''
-    setActiveTag(next)
-    currentQueryRef.current = { keyword, tag: next }
-    pushUrl(keyword, next)
-    fetchResults(keyword, next, 0, false)
+    pushUrl(keyword, tag ?? '')
   }
 
-  // ── Infinite scroll ───────────────────────────────────────────────────────
+  function handleFrequentKwSelect(kw: string) {
+    pushUrl(kw, '')
+  }
+
+  function handleClear() {
+    pushUrl('', '')
+  }
+
+  // ── Infinite scroll ─────────────────────────────────────────────────────────
   const hasMoreRef = useRef(hasMore)
   const loadingRef = useRef(loading)
   const offsetRef = useRef(offset)
@@ -177,95 +201,125 @@ export default function SearchResults({
     return () => observer.disconnect()
   }, [fetchResults])
 
-  // ── Clear search ──────────────────────────────────────────────────────────
-  function handleClear() {
-    setKeyword('')
-    setActiveTag('')
-    currentQueryRef.current = { keyword: '', tag: '' }
-    pushUrl('', '')
-    fetchResults('', '', 0, false)
-    inputRef.current?.focus()
-  }
-
   const hasQuery = keyword.trim() || activeTag
   const gridStyle: React.CSSProperties = { columns: cols, columnGap: 16 }
 
   return (
     <>
-      <div className="max-w-3xl mx-auto mb-8 space-y-5">
+      {/* ── Tags + filter bar ── */}
+      <div className="max-w-3xl mx-auto" style={{ marginBottom: 56, marginTop: 32 }}>
 
-        {/* ── Search bar ── */}
-        <form onSubmit={handleKeywordSubmit} className="relative">
-          <div className="pointer-events-none absolute left-4 top-1/2 -translate-y-1/2 text-[#5B6B73]">
-            <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
-              <circle cx="11" cy="11" r="8" />
-              <path d="m21 21-4.35-4.35" />
-            </svg>
-          </div>
-          <input
-            ref={inputRef}
-            type="search"
-            value={keyword}
-            onChange={(e) => handleKeywordChange(e.target.value)}
-            placeholder="Search projects by keyword…"
-            className="w-full rounded-2xl border border-[#E6ECEA] bg-white py-4 pl-12 pr-12 text-sm text-[#0F1720] placeholder:text-[#5B6B73] outline-none focus:border-[#35C8B4] focus:ring-2 focus:ring-[#35C8B4]/20 transition shadow-sm"
-          />
-          {(keyword || isPending) && (
-            <div className="absolute right-4 top-1/2 -translate-y-1/2 flex items-center gap-2">
-              {isPending && (
-                <span className="h-4 w-4 rounded-full border-2 border-[#C2F2E4] border-t-[#35C8B4] animate-spin" />
-              )}
-              {keyword && (
-                <button
-                  type="button"
-                  onClick={handleClear}
-                  className="flex h-6 w-6 items-center justify-center rounded-full bg-[#E6ECEA] hover:bg-[#C2F2E4] transition-colors"
-                  aria-label="Clear search"
-                >
-                  <svg width="10" height="10" viewBox="0 0 24 24" fill="none" stroke="#5B6B73" strokeWidth="2.5" strokeLinecap="round">
-                    <path d="M18 6 6 18M6 6l12 12" />
-                  </svg>
-                </button>
-              )}
-            </div>
-          )}
-        </form>
-
-        {/* ── Tag pills ── */}
+        {/* Popular tags */}
         {popularTags.length > 0 && (
-          <div>
-            <p className="mb-2.5 text-xs font-semibold text-[#5B6B73] uppercase tracking-wide">
-              Popular tags
-            </p>
+          <div style={{ marginBottom: hasQuery ? 32 : 0 }}>
+            <div className="flex items-center gap-2" style={{ marginBottom: 16 }}>
+              <span className="h-2 w-2 rounded-full bg-[#35C8B4] shrink-0" />
+              <p className="text-xs font-semibold text-[#5B6B73] uppercase tracking-wide">
+                Popular tags
+              </p>
+            </div>
+
             <TagPills
               tags={popularTags}
               activeTag={activeTag || null}
               onSelect={handleTagSelect}
               showCount
-              size="sm"
+              size="md"
             />
+
+            {/* Trending searches — search page only, shown when >3 searches logged */}
+            {frequentKeywords.length > 0 && (
+              <div style={{ marginTop: 16, display: 'flex', flexWrap: 'wrap', gap: 8 }}>
+                {frequentKeywords.map(kw => (
+                  <button
+                    key={kw}
+                    type="button"
+                    onClick={() => handleFrequentKwSelect(kw)}
+                    className={`tag-pill${keyword === kw ? ' active' : ''}`}
+                    style={{ gap: 5 }}
+                  >
+                    <svg
+                      width="9" height="9" viewBox="0 0 24 24" fill="none"
+                      stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round"
+                      style={{ opacity: 0.5, flexShrink: 0 }}
+                    >
+                      <polyline points="22 12 18 12 15 21 9 3 6 12 2 12" />
+                    </svg>
+                    {kw}
+                  </button>
+                ))}
+              </div>
+            )}
           </div>
         )}
 
-        {/* ── Active filters summary ── */}
+        {/* Active filters summary */}
         {hasQuery && (
-          <div className="flex items-center gap-2 flex-wrap">
-            <span className="text-sm text-[#5B6B73]">Showing results for</span>
-            {keyword && (
-              <span className="rounded-full bg-[#EDF7BE] border border-[#A4CF4A] px-3 py-1 text-xs font-semibold text-[#0F1720]">
-                &quot;{keyword}&quot;
+          <div
+            className="flex items-center justify-between gap-3"
+            style={{ borderBottom: '1px solid var(--border)', paddingBottom: 12 }}
+          >
+            <div className="flex items-center gap-2 flex-wrap min-w-0">
+              <span style={{ fontSize: '0.875rem', color: 'var(--muted)', flexShrink: 0 }}>
+                Showing results for
               </span>
-            )}
-            {activeTag && (
-              <span className="rounded-full bg-[#C2F2E4] border border-[#35C8B4] px-3 py-1 text-xs font-semibold text-[#35C8B4]">
-                #{activeTag}
-              </span>
-            )}
+              {keyword && (
+                <span style={{ fontWeight: 600, fontSize: '0.875rem', color: 'var(--text)' }}>
+                  &quot;{keyword}&quot;
+                </span>
+              )}
+              {activeTag && (
+                <span style={{
+                  borderRadius: 9999,
+                  background: 'var(--brume)',
+                  padding: '2px 10px',
+                  fontSize: '0.75rem',
+                  fontWeight: 600,
+                  color: 'var(--menthe)',
+                }}>
+                  #{activeTag}
+                </span>
+              )}
+              {!loading && (
+                <>
+                  <span style={{ color: 'var(--border)', fontSize: '0.875rem' }}>·</span>
+                  <span style={{ fontSize: '0.75rem', fontWeight: 500, color: 'var(--muted)' }}>
+                    {pins.length}{hasMore ? '+' : ''} result{pins.length !== 1 ? 's' : ''}
+                  </span>
+                </>
+              )}
+            </div>
             <button
               onClick={handleClear}
-              className="text-xs text-[#5B6B73] hover:text-[#35C8B4] underline transition-colors"
+              style={{
+                display: 'flex',
+                alignItems: 'center',
+                gap: 6,
+                flexShrink: 0,
+                fontSize: '0.75rem',
+                fontWeight: 500,
+                color: 'var(--muted)',
+                background: 'none',
+                border: 'none',
+                cursor: 'pointer',
+                padding: 0,
+                transition: 'color 140ms',
+              }}
+              onMouseEnter={e => { (e.currentTarget as HTMLElement).style.color = 'var(--text)' }}
+              onMouseLeave={e => { (e.currentTarget as HTMLElement).style.color = 'var(--muted)' }}
             >
-              Clear all
+              Clear
+              <span style={{
+                display: 'flex',
+                alignItems: 'center',
+                justifyContent: 'center',
+                width: 16,
+                height: 16,
+                borderRadius: '50%',
+                background: 'var(--surface-2)',
+                fontSize: '0.625rem',
+                lineHeight: 1,
+              }}>×</span>
             </button>
           </div>
         )}
@@ -274,14 +328,23 @@ export default function SearchResults({
       {/* ── Empty state ── */}
       {!loading && !error && pins.length === 0 && (
         <div className="flex flex-col items-center justify-center py-28 text-center">
-          <div className="mb-4 flex h-16 w-16 items-center justify-center rounded-full bg-[#C2F2E4]">
-            <svg width="26" height="26" viewBox="0 0 24 24" fill="none" stroke="#35C8B4" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+          <div style={{
+            marginBottom: 16,
+            display: 'flex',
+            alignItems: 'center',
+            justifyContent: 'center',
+            width: 64,
+            height: 64,
+            borderRadius: '50%',
+            background: 'var(--menthe-light)',
+          }}>
+            <svg width="26" height="26" viewBox="0 0 24 24" fill="none" stroke="var(--menthe)" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
               <circle cx="11" cy="11" r="8" />
               <path d="m21 21-4.35-4.35" />
             </svg>
           </div>
-          <p className="text-lg font-semibold text-[#0F1720]">No results found</p>
-          <p className="mt-1 text-sm text-[#5B6B73]">
+          <p style={{ fontSize: '1.125rem', fontWeight: 600, color: 'var(--text)' }}>No results found</p>
+          <p style={{ marginTop: 4, fontSize: '0.875rem', color: 'var(--muted)' }}>
             Try a different keyword or remove the tag filter.
           </p>
         </div>
@@ -289,12 +352,20 @@ export default function SearchResults({
 
       {/* ── Error ── */}
       {error && (
-        <div className="mb-6 rounded-2xl border border-red-200 bg-red-50 px-5 py-4 text-sm text-red-600">
+        <div style={{
+          marginBottom: 24,
+          borderRadius: 16,
+          border: '1px solid var(--danger)',
+          background: 'var(--danger-bg)',
+          padding: '14px 20px',
+          fontSize: '0.875rem',
+          color: 'var(--danger)',
+        }}>
           {error}
         </div>
       )}
 
-      {/* ── Results masonry grid — same PinCard as landing page ── */}
+      {/* ── Results masonry grid ── */}
       {pins.length > 0 && (
         <div style={gridStyle}>
           {pins.map((dbPin, i) => (
@@ -306,10 +377,7 @@ export default function SearchResults({
                 pageBreakInside: 'avoid',
               }}
             >
-              <PinCard
-                pin={dbPinToPin(dbPin)}
-                currentUserId={currentUserId}
-              />
+              <PinCard pin={dbPinToPin(dbPin)} currentUserId={currentUserId} />
             </div>
           ))}
         </div>
@@ -339,9 +407,13 @@ export default function SearchResults({
       )}
 
       {!hasMore && pins.length > 0 && (
-        <p className="py-12 text-center text-sm text-[#5B6B73]">
-          End of results
-        </p>
+        <div style={{ padding: '48px 0', display: 'flex', alignItems: 'center', gap: 16 }}>
+          <div style={{ flex: 1, height: 1, background: 'var(--border)' }} />
+          <p style={{ fontSize: '0.6875rem', fontWeight: 500, color: 'var(--muted-light)', textTransform: 'uppercase', letterSpacing: '0.1em' }}>
+            End of results
+          </p>
+          <div style={{ flex: 1, height: 1, background: 'var(--border)' }} />
+        </div>
       )}
     </>
   )

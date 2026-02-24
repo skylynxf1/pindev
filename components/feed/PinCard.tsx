@@ -269,8 +269,11 @@ export default memo(function PinCard({ pin: initialPin, onSave, currentUserId, o
           borderRadius: 18,
           border: '1px solid var(--border)',
           background: '#fff',
-          boxShadow: hovered ? '0 8px 24px rgba(0,0,0,0.10)' : '0 1px 4px rgba(0,0,0,0.04)',
-          transition: 'box-shadow 200ms',
+          boxShadow: hovered
+            ? '0 12px 32px rgba(0,0,0,0.13), 0 2px 8px rgba(0,0,0,0.07)'
+            : '0 1px 4px rgba(0,0,0,0.04)',
+          transform: hovered ? 'translateY(-4px)' : 'translateY(0)',
+          transition: 'box-shadow 220ms, transform 220ms cubic-bezier(.22,1,.36,1)',
           cursor: 'pointer',
         }}
       >
@@ -602,7 +605,10 @@ export default memo(function PinCard({ pin: initialPin, onSave, currentUserId, o
               href={pin.live_url}
               target="_blank"
               rel="noopener noreferrer"
-              onClick={e => e.stopPropagation()}
+              onClick={e => {
+                e.stopPropagation()
+                fetch(`/api/pins/${pin.id}/click`, { method: 'POST' }).catch(() => {})
+              }}
               style={{
                 flexShrink: 0,
                 display: 'inline-flex',

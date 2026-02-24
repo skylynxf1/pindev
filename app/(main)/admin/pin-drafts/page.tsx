@@ -27,8 +27,6 @@ type IngestResult = {
 // which button is currently fetching — null means idle
 type IngestSource = "github" | "ui" | "discovery" | null;
 
-const SECRET = process.env.NEXT_PUBLIC_ADMIN_DRAFTS_SECRET ?? "";
-
 /** Safely parse JSON from a fetch Response — never throws on empty/HTML bodies. */
 async function safeJson(res: Response): Promise<Record<string, unknown>> {
   try {
@@ -52,9 +50,7 @@ export default function AdminPinDraftsPage() {
     setLoading(true);
     setErr(null);
 
-    const res = await fetch("/api/admin/pin-drafts?status=PENDING", {
-      headers: { Authorization: `Bearer ${SECRET}` },
-    });
+    const res = await fetch("/api/admin/pin-drafts?status=PENDING");
 
     const json = await res.json();
     if (!res.ok) {
@@ -70,7 +66,6 @@ export default function AdminPinDraftsPage() {
   async function publish(id: string) {
     const res = await fetch(`/api/admin/pin-drafts/${id}/publish`, {
       method: "POST",
-      headers: { Authorization: `Bearer ${SECRET}` },
     });
     const json = await res.json();
     if (!res.ok) { alert(json.error || "Publish failed"); return; }
@@ -80,7 +75,7 @@ export default function AdminPinDraftsPage() {
   async function reject(id: string) {
     const res = await fetch(`/api/admin/pin-drafts/${id}`, {
       method: "PATCH",
-      headers: { Authorization: `Bearer ${SECRET}`, "Content-Type": "application/json" },
+      headers: { "Content-Type": "application/json" },
       body: JSON.stringify({ status: "REJECTED" }),
     });
     const json = await res.json();
@@ -96,10 +91,7 @@ export default function AdminPinDraftsPage() {
     const endpoint = source === "github" ? "/api/admin/ingest-github" : "/api/admin/ingest-ui";
 
     try {
-      const res = await fetch(endpoint, {
-        method: "POST",
-        headers: { Authorization: `Bearer ${SECRET}` },
-      });
+      const res = await fetch(endpoint, { method: "POST" });
       const json = await safeJson(res);
       if (!res.ok) {
         setIngestErr((json.error as string) || "Ingestion failed");
@@ -121,10 +113,7 @@ export default function AdminPinDraftsPage() {
 
     try {
       // Step 1: clear all pending drafts
-      const clearRes = await fetch("/api/admin/pin-drafts/clear", {
-        method: "POST",
-        headers: { Authorization: `Bearer ${SECRET}` },
-      });
+      const clearRes = await fetch("/api/admin/pin-drafts/clear", { method: "POST" });
       const clearJson = await safeJson(clearRes);
       if (!clearRes.ok) {
         setIngestErr((clearJson.error as string) || "Clear failed");
@@ -133,10 +122,7 @@ export default function AdminPinDraftsPage() {
       const cleared: number = (clearJson.deleted as number) ?? 0;
 
       // Step 2: run multi-source discovery
-      const discRes = await fetch("/api/admin/ingest-discovery", {
-        method: "POST",
-        headers: { Authorization: `Bearer ${SECRET}` },
-      });
+      const discRes = await fetch("/api/admin/ingest-discovery", { method: "POST" });
       const discJson = await safeJson(discRes);
 
       if (!discRes.ok) {

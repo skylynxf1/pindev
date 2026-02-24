@@ -4,9 +4,10 @@ import { useEffect, useState, useCallback, useRef } from 'react'
 import { createClient } from '@/lib/supabase/client'
 import type { Pin, Tag } from '@/types'
 
-const PAGE_SIZE = 40
+const INITIAL_PAGE_SIZE = 40
 
-export function usePins(options?: { initialPins?: Pin[] }) {
+export function usePins(options?: { initialPins?: Pin[]; scrollPageSize?: number }) {
+  const scrollPageSize = options?.scrollPageSize ?? INITIAL_PAGE_SIZE
   const [pins, setPins] = useState<Pin[]>(options?.initialPins ?? [])
   const [loading, setLoading] = useState(false)
   const [hasMore, setHasMore] = useState(true)
@@ -14,6 +15,7 @@ export function usePins(options?: { initialPins?: Pin[] }) {
   // offset-based pagination works with any ORDER BY (sort_index + created_at)
   const offsetRef = useRef<number>(0)
   const isFetchingRef = useRef(false)
+  const isFirstFetch = useRef(true)
 
   const fetchPage = useCallback(async () => {
     if (isFetchingRef.current || !hasMore) return
@@ -21,10 +23,13 @@ export function usePins(options?: { initialPins?: Pin[] }) {
     setLoading(true)
     setError(null)
 
+    const pageSize = isFirstFetch.current ? INITIAL_PAGE_SIZE : scrollPageSize
+    isFirstFetch.current = false
+
     try {
       const supabase = createClient()
       const from = offsetRef.current
-      const to = from + PAGE_SIZE - 1
+      const to = from + pageSize - 1
 
       const { data, error: sbError } = await supabase
         .from('pins')
@@ -67,7 +72,7 @@ export function usePins(options?: { initialPins?: Pin[] }) {
           : [],
       })) as Pin[]
 
-      if (rows.length < PAGE_SIZE) setHasMore(false)
+      if (rows.length < pageSize) setHasMore(false)
       offsetRef.current += rows.length
 
       setPins((prev) => {
@@ -80,7 +85,7 @@ export function usePins(options?: { initialPins?: Pin[] }) {
       setLoading(false)
       isFetchingRef.current = false
     }
-  }, [hasMore])
+  }, [hasMore, scrollPageSize])
 
   // Initial load
   useEffect(() => {

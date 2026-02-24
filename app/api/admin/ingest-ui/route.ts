@@ -1,11 +1,6 @@
 import { NextResponse } from "next/server";
 import { createAdminClient } from "@/lib/supabase/admin";
-
-function requireAgentSecret(req: Request) {
-  const header = req.headers.get("authorization") || "";
-  const token = header.startsWith("Bearer ") ? header.slice(7) : "";
-  return token === (process.env.PIN_AGENT_SECRET ?? "");
-}
+import { requireAdmin } from "@/lib/auth/requireAdmin";
 
 // ── HN Algolia search ────────────────────────────────────────────────────────
 
@@ -116,7 +111,7 @@ const QUERIES: Array<{ q: string; tags: string[] }> = [
 // ── Route ────────────────────────────────────────────────────────────────────
 
 export async function POST(req: Request) {
-  if (!requireAgentSecret(req)) {
+  if (!(await requireAdmin(req))) {
     return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
   }
   try {

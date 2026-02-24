@@ -7,7 +7,7 @@ import LandingAnimation from '@/components/LandingAnimation'
 import MasonryGrid from '@/components/feed/MasonryGrid'
 import AdminSortableGrid from '@/components/feed/AdminSortableGrid'
 import CategoryFilterBar, { type CategoryId, type SortOrder } from '@/components/feed/CategoryFilterBar'
-import { usePins } from '@/lib/hooks/usePins'
+import { useFeed } from '@/lib/hooks/useFeed'
 import { createClient } from '@/lib/supabase/client'
 import type { Pin } from '@/types'
 
@@ -122,7 +122,7 @@ function AuthModal({ onDismiss }: { onDismiss: () => void }) {
    ───────────────────────────────────────────────────────────── */
 export default function HomePage() {
   const router = useRouter()
-  const { pins, loading, hasMore, error, fetchNextPage, removePin, updatePin, reorderPins } = usePins()
+  const { pins, loading, hasMore, error, fetchNextPage, removePin, updatePin, reorderPins } = useFeed({ scrollPageSize: 10 })
   const [activeCategory, setActiveCategory] = useState<CategoryId>('all')
   const [sortOrder, setSortOrder] = useState<SortOrder>('latest')
   const [authReady, setAuthReady] = useState(false)
