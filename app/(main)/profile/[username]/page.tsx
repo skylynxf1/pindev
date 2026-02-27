@@ -6,6 +6,7 @@ import { createClient } from '@/lib/supabase/server'
 import type { Pin, Board, Profile } from '@/types'
 import ProfileTabs from '@/components/profile/ProfileTabs'
 import ProfileHeaderActions from '@/components/profile/ProfileHeaderActions'
+import CopyableUsername from '@/components/CopyableUsername'
 
 interface Props {
   params: Promise<{ username: string }>
@@ -243,9 +244,10 @@ export default async function ProfilePage({ params, searchParams }: Props) {
               }}>
                 {displayName}
               </h1>
-              <p style={{ fontSize: '0.9rem', color: 'var(--menthe)', fontWeight: 600, margin: '0 0 10px' }}>
-                @{profile.username}
-              </p>
+              <CopyableUsername
+                username={profile.username}
+                style={{ fontSize: '0.9rem', color: 'var(--menthe)', fontWeight: 600, margin: '0 0 10px' }}
+              />
 
               {profile.bio && (
                 <p style={{

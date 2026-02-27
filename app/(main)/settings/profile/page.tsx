@@ -4,6 +4,7 @@ import { useState, useEffect, useRef, useCallback } from 'react'
 import { useRouter } from 'next/navigation'
 import Link from 'next/link'
 import type { Profile } from '@/types'
+import CopyableUsername from '@/components/CopyableUsername'
 
 type FormState = { username: string; display_name: string; bio: string }
 type FieldErrors = Partial<Record<keyof FormState, string>>
@@ -485,9 +486,10 @@ export default function SettingsProfilePage() {
               <p style={{ fontWeight: 800, color: 'var(--text)', fontSize: '1.125rem', margin: '0 0 2px', letterSpacing: '-0.01em' }}>
                 {profile.display_name || profile.username}
               </p>
-              <p style={{ fontSize: '0.875rem', color: 'var(--menthe)', fontWeight: 600, margin: '0 0 8px' }}>
-                @{profile.username}
-              </p>
+              <CopyableUsername
+                username={profile.username}
+                style={{ fontSize: '0.875rem', color: 'var(--menthe)', fontWeight: 600, margin: '0 0 8px' }}
+              />
               <button
                 type="button"
                 onClick={() => avatarInputRef.current?.click()}
