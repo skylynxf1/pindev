@@ -124,7 +124,7 @@ function AuthModal({ onDismiss }: { onDismiss: () => void }) {
 export default function HomePage() {
   const router = useRouter()
   const { pins, loading, hasMore, error, fetchNextPage, removePin, updatePin, reorderPins } = useFeed({ scrollPageSize: 10 })
-  const [activeCategory, setActiveCategory] = useState<CategoryId>('all')
+  const [selectedFilters, setSelectedFilters] = useState<Set<CategoryId>>(new Set(['all']))
   const [sortOrder, setSortOrder] = useState<SortOrder>('latest')
   const [authReady, setAuthReady] = useState(false)
   const [isLoggedIn, setIsLoggedIn] = useState(false)
@@ -170,6 +170,33 @@ export default function HomePage() {
     if (pin) updatePin({ ...pin, featured_until: featuredUntil })
   }, [pins, updatePin])
 
+  const handleFilterToggle = useCallback((id: CategoryId) => {
+    setSelectedFilters(prev => {
+      // Clicking "All" always resets to only "All"
+      if (id === 'all') {
+        return new Set<CategoryId>(['all'])
+      }
+
+      const next = new Set(prev)
+      // Any non-all click removes "all"
+      next.delete('all')
+
+      // Toggle the clicked filter
+      if (next.has(id)) {
+        next.delete(id)
+      } else {
+        next.add(id)
+      }
+
+      // If nothing left, revert to "All"
+      if (next.size === 0) {
+        return new Set<CategoryId>(['all'])
+      }
+
+      return next
+    })
+  }, [])
+
   useEffect(() => {
     const supabase = createClient()
     supabase.auth.getUser().then(({ data }) => {
@@ -188,20 +215,41 @@ export default function HomePage() {
     })
   }, [])
 
-  /* Multi-tag filtering: a pin shows under a category if ANY of its tags maps
-     to that category. Featured filters by featured_until > now(). */
+  /* Multi-select filtering:
+     - Categories combine with OR (pin matches if ANY tag maps to ANY selected category).
+     - Featured acts as AND constraint: when combined with categories, only featured
+       pins that also match a selected category are shown. Alone, shows all featured. */
   const filteredPins = useMemo(() => {
-    let result: Pin[]
+    if (selectedFilters.has('all')) {
+      let result = pins
+      if (sortOrder === 'oldest') {
+        result = [...result].sort((a, b) =>
+          new Date(a.created_at).getTime() - new Date(b.created_at).getTime()
+        )
+      }
+      return result
+    }
 
-    if (activeCategory === 'all') {
-      result = pins
-    } else if (activeCategory === 'featured') {
-      const now = new Date()
-      result = pins.filter(p => p.featured_until && new Date(p.featured_until) > now)
-    } else {
-      result = pins.filter(pin =>
-        pin.tags?.some(tag => CATEGORY_TAG_MAP[tag.name.toLowerCase()] === activeCategory)
+    const categoryFilters = [...selectedFilters].filter(f => f !== 'featured')
+    const hasFeatured = selectedFilters.has('featured')
+
+    let result = pins
+
+    // Category OR filtering
+    if (categoryFilters.length > 0) {
+      const catSet: Set<string> = new Set(categoryFilters)
+      result = result.filter(pin =>
+        pin.tags?.some(tag => {
+          const mapped = CATEGORY_TAG_MAP[tag.name.toLowerCase()]
+          return mapped !== undefined && catSet.has(mapped)
+        })
       )
+    }
+
+    // Featured AND constraint
+    if (hasFeatured) {
+      const now = new Date()
+      result = result.filter(p => p.featured_until && new Date(p.featured_until) > now)
     }
 
     if (sortOrder === 'oldest') {
@@ -211,7 +259,7 @@ export default function HomePage() {
     }
 
     return result
-  }, [pins, activeCategory, sortOrder])
+  }, [pins, selectedFilters, sortOrder])
 
   const showAuthModal = authReady && !isLoggedIn && !authModalDismissed
 
@@ -232,8 +280,8 @@ export default function HomePage() {
       >
         <div style={{ maxWidth: 1800, margin: '0 auto', padding: '0 24px' }}>
           <CategoryFilterBar
-            active={activeCategory}
-            onChange={setActiveCategory}
+            active={selectedFilters}
+            onToggle={handleFilterToggle}
             sortOrder={sortOrder}
             onSortChange={setSortOrder}
           />
@@ -295,7 +343,7 @@ export default function HomePage() {
         ) : (
           <MasonryGrid
             pins={filteredPins}
-            hasMore={hasMore && activeCategory === 'all'}
+            hasMore={hasMore && selectedFilters.has('all')}
             loading={loading}
             onLoadMore={fetchNextPage}
             onSave={() => setAuthModalDismissed(false)}

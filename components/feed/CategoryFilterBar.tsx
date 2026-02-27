@@ -89,15 +89,15 @@ const CATEGORIES: Category[] = [
 ]
 
 interface CategoryFilterBarProps {
-  active: CategoryId
-  onChange: (id: CategoryId) => void
+  active: ReadonlySet<CategoryId>
+  onToggle: (id: CategoryId) => void
   sortOrder: SortOrder
   onSortChange: (s: SortOrder) => void
 }
 
 export default function CategoryFilterBar({
   active,
-  onChange,
+  onToggle,
   sortOrder,
   onSortChange,
 }: CategoryFilterBarProps) {
@@ -115,11 +115,11 @@ export default function CategoryFilterBar({
     return () => document.removeEventListener('mousedown', handler)
   }, [filterOpen])
 
-  const isFeatured = active === 'featured'
+  const isFeatured = active.has('featured')
 
   return (
     <div
-      role="tablist"
+      role="toolbar"
       aria-label="Filter by category"
       style={{
         display: 'flex',
@@ -134,13 +134,13 @@ export default function CategoryFilterBar({
     >
       {/* Main category chips */}
       {CATEGORIES.map(cat => {
-        const isActive = cat.id === active
+        const isActive = active.has(cat.id)
         return (
           <button
             key={cat.id}
-            role="tab"
-            aria-selected={isActive}
-            onClick={() => onChange(cat.id)}
+            role="checkbox"
+            aria-checked={isActive}
+            onClick={() => onToggle(cat.id)}
             style={{
               display: 'flex',
               alignItems: 'center',
@@ -183,11 +183,11 @@ export default function CategoryFilterBar({
       {/* Spacer */}
       <div style={{ flex: 1, minWidth: 8 }} aria-hidden="true" />
 
-      {/* Featured chip — right side, star icon, same pill style */}
+      {/* Featured chip — right side, star icon, toggleable like others */}
       <button
-        role="tab"
-        aria-selected={isFeatured}
-        onClick={() => onChange('featured')}
+        role="checkbox"
+        aria-checked={isFeatured}
+        onClick={() => onToggle('featured')}
         style={{
           display: 'flex',
           alignItems: 'center',
