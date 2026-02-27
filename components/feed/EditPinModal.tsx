@@ -12,6 +12,7 @@ const CATEGORY_OPTIONS = [
   { id: 'app',        label: 'App' },
   { id: 'ai-tool',    label: 'AI Tool' },
   { id: 'vibecoding', label: 'VibeCoding' },
+  { id: 'games',      label: 'Games' },
 ] as const
 
 const CATEGORY_IDS = new Set<string>(CATEGORY_OPTIONS.map(c => c.id))

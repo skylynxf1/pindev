@@ -24,6 +24,9 @@ const CATEGORY_TAG_MAP: Record<string, { label: string; id: string }> = {
   vibecoding: { label: 'VIBECODING', id: 'vibecoding' },
   'vibe-coding': { label: 'VIBECODING', id: 'vibecoding' },
   vibe: { label: 'VIBECODING', id: 'vibecoding' },
+  games: { label: 'GAMES', id: 'games' },
+  game: { label: 'GAMES', id: 'games' },
+  gaming: { label: 'GAMES', id: 'games' },
 }
 
 function getCategoriesFromTags(tags?: Tag[]) {

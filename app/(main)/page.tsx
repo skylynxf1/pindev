@@ -17,6 +17,7 @@ const CATEGORY_TAG_MAP: Record<string, string> = {
   app: 'app', mobile: 'app', ios: 'app', android: 'app',
   'ai-tool': 'ai-tool', ai: 'ai-tool', ml: 'ai-tool', llm: 'ai-tool',
   vibecoding: 'vibecoding', 'vibe-coding': 'vibecoding', vibe: 'vibecoding',
+  games: 'games', game: 'games', gaming: 'games',
 }
 
 /* ─────────────────────────────────────────────────────────────

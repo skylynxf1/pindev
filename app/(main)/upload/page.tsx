@@ -432,7 +432,7 @@ export default function UploadPage() {
       setAgreedToRules(true)
 
       // Restore category tag selections
-      const CATEGORY_IDS = ['design', 'website', 'app', 'ai-tool', 'vibecoding']
+      const CATEGORY_IDS = ['design', 'website', 'app', 'ai-tool', 'vibecoding', 'games']
       // eslint-disable-next-line @typescript-eslint/no-explicit-any
       const tagNames = (pin.pin_tags ?? []).map((pt: any) => pt.tags?.name).filter(Boolean) as string[]
       setSelectedTags(tagNames.filter(t => CATEGORY_IDS.includes(t)))
@@ -877,6 +877,7 @@ export default function UploadPage() {
                     { id: 'app',        label: 'Apps',        icon: <><rect x="5" y="2" width="14" height="20" rx="2"/><line x1="12" y1="18" x2="12.01" y2="18"/></> },
                     { id: 'ai-tool',    label: 'AI Tools',    icon: <><polygon points="12 2 2 7 12 12 22 7 12 2"/><polyline points="2 17 12 22 22 17"/><polyline points="2 12 12 17 22 12"/></> },
                     { id: 'vibecoding', label: 'VibeCoding',  icon: <><polyline points="16 18 22 12 16 6"/><polyline points="8 6 2 12 8 18"/></> },
+                    { id: 'games',      label: 'Games',       icon: <><line x1="6" y1="12" x2="10" y2="12"/><line x1="8" y1="10" x2="8" y2="14"/><line x1="15" y1="13" x2="15.01" y2="13"/><line x1="18" y1="11" x2="18.01" y2="11"/><path d="M17.32 5H6.68a4 4 0 0 0-3.978 3.59c-.006.052-.01.101-.017.152C2.604 9.416 2 14.456 2 16a3 3 0 0 0 3 3c1 0 1.5-.5 2-1l1.414-1.414A2 2 0 0 1 9.828 16h4.344a2 2 0 0 1 1.414.586L17 18c.5.5 1 1 2 1a3 3 0 0 0 3-3c0-1.544-.604-6.584-.685-7.258-.007-.05-.011-.1-.017-.151A4 4 0 0 0 17.32 5z"/></> },
                   ] as Array<{ id: string; label: string; icon: React.ReactNode }>).map(({ id, label, icon }) => {
                     const active = selectedTags.includes(id)
                     return (

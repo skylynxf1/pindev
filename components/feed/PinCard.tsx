@@ -29,6 +29,9 @@ const CATEGORY_TAG_MAP: Record<string, { label: string; id: string }> = {
   vibecoding:    { label: 'VIBECODING', id: 'vibecoding' },
   'vibe-coding': { label: 'VIBECODING', id: 'vibecoding' },
   vibe:          { label: 'VIBECODING', id: 'vibecoding' },
+  games:         { label: 'GAMES',      id: 'games' },
+  game:          { label: 'GAMES',      id: 'games' },
+  gaming:        { label: 'GAMES',      id: 'games' },
 }
 
 function getCategoriesFromTags(tags?: Tag[]) {
@@ -79,6 +82,15 @@ const CATEGORY_ICONS: Record<string, React.ReactNode> = {
     <svg width="11" height="11" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true">
       <polyline points="16 18 22 12 16 6"/>
       <polyline points="8 6 2 12 8 18"/>
+    </svg>
+  ),
+  games: (
+    <svg width="11" height="11" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true">
+      <line x1="6" y1="12" x2="10" y2="12"/>
+      <line x1="8" y1="10" x2="8" y2="14"/>
+      <line x1="15" y1="13" x2="15.01" y2="13"/>
+      <line x1="18" y1="11" x2="18.01" y2="11"/>
+      <path d="M17.32 5H6.68a4 4 0 0 0-3.978 3.59c-.006.052-.01.101-.017.152C2.604 9.416 2 14.456 2 16a3 3 0 0 0 3 3c1 0 1.5-.5 2-1l1.414-1.414A2 2 0 0 1 9.828 16h4.344a2 2 0 0 1 1.414.586L17 18c.5.5 1 1 2 1a3 3 0 0 0 3-3c0-1.544-.604-6.584-.685-7.258-.007-.05-.011-.1-.017-.151A4 4 0 0 0 17.32 5z"/>
     </svg>
   ),
 }
