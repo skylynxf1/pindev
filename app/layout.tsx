@@ -1,6 +1,7 @@
 import { Suspense } from 'react'
 import type { Metadata, Viewport } from 'next'
 import Shell from '@/components/layout/Shell'
+import { ToastProvider } from '@/components/Toast'
 import '@/app/globals.css'
 
 /* ─────────────────────────────────────────────────────────────
@@ -73,9 +74,11 @@ export default function RootLayout({
           useSearchParams() inside SearchBar, which triggers Next.js'
           static-generation bailout without a Suspense boundary.
         */}
-        <Suspense fallback={null}>
-          <Shell>{children}</Shell>
-        </Suspense>
+        <ToastProvider>
+          <Suspense fallback={null}>
+            <Shell>{children}</Shell>
+          </Suspense>
+        </ToastProvider>
 
         {/* Skip-to-content anchor for keyboard / AT users */}
         <a

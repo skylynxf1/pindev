@@ -7,6 +7,7 @@ import { useRouter } from 'next/navigation'
 import type { Pin, Tag } from '@/types'
 import EditPinModal from './EditPinModal'
 import LikeButton from './LikeButton'
+import { useToast } from '@/components/Toast'
 
 /* ─────────────────────────────────────────────────────────────
    CATEGORY DETECTION
@@ -152,6 +153,7 @@ interface PinCardProps {
 
 export default memo(function PinCard({ pin: initialPin, onSave, currentUserId, onDelete, onUnsave, onEdit, onAdminDelete, onFeatureToggle, isAdmin, initialSaved, initialLikeCount, initialLikedByMe, onAuthRequired }: PinCardProps) {
   const router = useRouter()
+  const { toast } = useToast()
   const [pin, setPin] = useState(initialPin)
   const [hovered, setHovered] = useState(false)
   const [confirmDelete, setConfirmDelete] = useState(false)
@@ -193,6 +195,7 @@ export default memo(function PinCard({ pin: initialPin, onSave, currentUserId, o
   }
 
   async function doSave() {
+    setSaved(true) // optimistic
     setSaving(true)
     try {
       const res = await fetch('/api/saved-pins', {
@@ -200,13 +203,22 @@ export default memo(function PinCard({ pin: initialPin, onSave, currentUserId, o
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ pin_id: pin.id }),
       })
-      if (res.ok) setSaved(true)
+      if (!res.ok) {
+        setSaved(false)
+        toast('Failed to save', 'error')
+      } else {
+        toast('Pin saved!')
+      }
+    } catch {
+      setSaved(false)
+      toast('Failed to save', 'error')
     } finally {
       setSaving(false)
     }
   }
 
   async function doUnsave() {
+    setSaved(false) // optimistic
     setUnsaving(true)
     try {
       const res = await fetch('/api/saved-pins', {
@@ -214,10 +226,16 @@ export default memo(function PinCard({ pin: initialPin, onSave, currentUserId, o
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ pin_id: pin.id }),
       })
-      if (res.ok) {
-        setSaved(false)
+      if (!res.ok) {
+        setSaved(true)
+        toast('Failed to unsave', 'error')
+      } else {
         onUnsave?.(pin.id)
+        toast('Pin removed from saved')
       }
+    } catch {
+      setSaved(true)
+      toast('Failed to unsave', 'error')
     } finally {
       setUnsaving(false)
     }
@@ -310,6 +328,7 @@ export default memo(function PinCard({ pin: initialPin, onSave, currentUserId, o
               height={600}
               sizes="(max-width: 640px) 100vw, (max-width: 1200px) 50vw, 25vw"
               style={{ width: '100%', height: 'auto', display: 'block' }}
+              loading="lazy"
               unoptimized
             />
           )}

@@ -11,6 +11,7 @@ import {
   isVideoType,
 } from '@/lib/validators/pin'
 import { checkVideoDuration, captureVideoThumbnail, formatBytes } from '@/lib/utils/media'
+import { useToast } from '@/components/Toast'
 
 /* ─────────────────────────────────────────────────────────────
    SMALL HELPERS
@@ -375,6 +376,7 @@ async function captureFrameAt(file: File, time: number): Promise<Blob | null> {
    ───────────────────────────────────────────────────────────── */
 export default function UploadPage() {
   const router = useRouter()
+  const { toast } = useToast()
   const searchParams = useSearchParams()
   const editId = searchParams.get('edit') // pin ID when editing existing pin
 
@@ -502,7 +504,7 @@ export default function UploadPage() {
     const method = editId ? 'PATCH' : 'POST'
     const res = await fetch(url, { method, body })
     const json = await res.json()
-    if (!res.ok) { setSubmitError(json.error ?? 'Something went wrong.'); setSubmitting(false); return }
+    if (!res.ok) { const msg = json.error ?? 'Something went wrong.'; setSubmitError(msg); toast(msg, 'error'); setSubmitting(false); return }
     router.push(`/pin/${editId ?? json.id}`)
   }
 
@@ -574,6 +576,7 @@ export default function UploadPage() {
         </div>
 
         <form onSubmit={handleSubmit} style={{ display: 'flex', flexDirection: 'column', gap: 32 }}>
+          <fieldset disabled={submitting} style={{ border: 'none', padding: 0, margin: 0, display: 'contents' }}>
 
           {/* ── PROJECT MEDIA ── */}
           <div>
@@ -1008,8 +1011,11 @@ export default function UploadPage() {
             </div>
           )}
 
+          </fieldset>
+
           {/* ── Publish button ── */}
           <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', gap: 14 }}>
+            {submitting && <div className="progress-bar-indeterminate" style={{ marginBottom: 4 }} />}
             <button
               type="submit"
               disabled={submitting}
