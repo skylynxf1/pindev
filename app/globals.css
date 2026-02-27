@@ -270,11 +270,53 @@ body.intro-active [data-pin-item] { opacity: 0; }
 
 /* Logo pulse (branded loading) */
 @keyframes logoPulse {
-  0%, 100% { opacity: 0.4; transform: scale(0.96); }
-  50%      { opacity: 1;   transform: scale(1.04); }
+  0%, 100% { transform: scale(0.95); }
+  50%      { transform: scale(1.05); }
 }
 .logo-pulse {
-  animation: logoPulse 1.6s ease-in-out infinite;
+  animation: logoPulse 2s ease-in-out infinite;
+}
+
+/* Animated ring that traces around the logo */
+@keyframes ringTrace {
+  from { --ring-angle: 0deg; }
+  to   { --ring-angle: 360deg; }
+}
+@property --ring-angle {
+  syntax: '<angle>';
+  initial-value: 0deg;
+  inherits: false;
+}
+.branded-loader-ring {
+  position: absolute;
+  inset: -5px;
+  border-radius: var(--r-xl);
+  padding: 3px;
+  background: conic-gradient(
+    from var(--ring-angle),
+    transparent 0deg,
+    var(--menthe) 90deg,
+    var(--brume) 180deg,
+    transparent 360deg
+  );
+  -webkit-mask:
+    linear-gradient(#fff 0 0) content-box,
+    linear-gradient(#fff 0 0);
+  -webkit-mask-composite: xor;
+  mask:
+    linear-gradient(#fff 0 0) content-box,
+    linear-gradient(#fff 0 0);
+  mask-composite: exclude;
+  animation: ringTrace 1.8s linear infinite;
+}
+/* Safari fallback — rotating border glow */
+@supports not (animation-timeline: auto) {
+  @supports not (background: conic-gradient(from 0deg, red, blue)) {
+    .branded-loader-ring {
+      background: linear-gradient(135deg, var(--menthe), var(--brume), transparent);
+      animation: ringTrace 1.8s linear infinite;
+    }
+  }
 }
 
 /* Toast enter / exit */

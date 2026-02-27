@@ -181,6 +181,11 @@ export default memo(function PinCard({ pin: initialPin, onSave, currentUserId, o
     router.push(`/pin/${pin.id}`)
   }
 
+  function handleCardHover() {
+    setHovered(true)
+    router.prefetch(`/pin/${pin.id}`)
+  }
+
   async function handleSaveClick(e: React.MouseEvent) {
     e.stopPropagation()
     if (!currentUserId) {
@@ -292,7 +297,7 @@ export default memo(function PinCard({ pin: initialPin, onSave, currentUserId, o
       {/* Card — clicking anywhere (except buttons/links) opens detail view */}
       <div
         onClick={handleCardClick}
-        onMouseEnter={() => setHovered(true)}
+        onMouseEnter={handleCardHover}
         onMouseLeave={() => setHovered(false)}
         style={{
           position: 'relative',
