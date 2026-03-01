@@ -3,7 +3,7 @@
 import { useEffect, useState, useCallback, useRef } from 'react'
 import type { Pin } from '@/types'
 
-const INITIAL_PAGE_SIZE = 40
+const INITIAL_PAGE_SIZE = 35
 
 export function useFeed(options?: { scrollPageSize?: number }) {
   const scrollPageSize = options?.scrollPageSize ?? INITIAL_PAGE_SIZE
