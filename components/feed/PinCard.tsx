@@ -7,6 +7,7 @@ import { useRouter } from 'next/navigation'
 import type { Pin, Tag } from '@/types'
 import LikeButton from './LikeButton'
 import { useToast } from '@/components/Toast'
+import { useEditPin } from '@/components/pin/EditPinProvider'
 
 /* ─────────────────────────────────────────────────────────────
    CATEGORY DETECTION
@@ -153,6 +154,7 @@ interface PinCardProps {
 export default memo(function PinCard({ pin: initialPin, onSave, currentUserId, onDelete, onUnsave, onEdit, onAdminDelete, onFeatureToggle, isAdmin, initialSaved, initialLikeCount, initialLikedByMe, onAuthRequired }: PinCardProps) {
   const router = useRouter()
   const { toast } = useToast()
+  const { openEditModal } = useEditPin()
   const [pin, setPin] = useState(initialPin)
   const [hovered, setHovered] = useState(false)
   const [confirmDelete, setConfirmDelete] = useState(false)
@@ -546,7 +548,7 @@ export default memo(function PinCard({ pin: initialPin, onSave, currentUserId, o
             {isOwner && (
               <button
                 type="button"
-                onClick={e => { e.stopPropagation(); router.push(`/pin/${pin.id}?edit=true`) }}
+                onClick={e => { e.stopPropagation(); openEditModal(pin, (updated) => { setPin(updated); onEdit?.(updated) }) }}
                 title="Edit pin"
                 style={{
                   display: 'flex', alignItems: 'center', justifyContent: 'center',

@@ -2,6 +2,7 @@ import { Suspense } from 'react'
 import type { Metadata, Viewport } from 'next'
 import Shell from '@/components/layout/Shell'
 import { ToastProvider } from '@/components/Toast'
+import { EditPinProvider } from '@/components/pin/EditPinProvider'
 import '@/app/globals.css'
 
 /* ─────────────────────────────────────────────────────────────
@@ -71,9 +72,11 @@ export default function RootLayout({
           static-generation bailout without a Suspense boundary.
         */}
         <ToastProvider>
-          <Suspense fallback={null}>
-            <Shell>{children}</Shell>
-          </Suspense>
+          <EditPinProvider>
+            <Suspense fallback={null}>
+              <Shell>{children}</Shell>
+            </Suspense>
+          </EditPinProvider>
         </ToastProvider>
 
         {/* Skip-to-content anchor for keyboard / AT users */}
