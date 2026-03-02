@@ -1,8 +1,9 @@
 'use client'
 
-import { useState, useEffect, useRef, useMemo, useCallback, startTransition } from 'react'
+import { useState, useEffect, useRef, useCallback, startTransition } from 'react'
 import Image from 'next/image'
 import Link from 'next/link'
+import { useSearchParams, useRouter } from 'next/navigation'
 import { createClient } from '@/lib/supabase/client'
 import PinCard from '@/components/feed/PinCard'
 import LikeButton from '@/components/feed/LikeButton'
@@ -44,7 +45,6 @@ function getCategoriesFromTags(tags?: Tag[]) {
 }
 
 /* How many pins to show under the selected pin (left column) */
-const LEFT_PIN_COUNT = 4
 const BATCH_SIZE = 20
 
 /* ─────────────────────────────────────────────────────────────
@@ -61,9 +61,52 @@ interface PinDetailViewProps {
   pin: Pin
 }
 
+/* ── Category options for edit mode ── */
+const CATEGORY_OPTIONS = [
+  { id: 'design',     label: 'Design' },
+  { id: 'website',    label: 'Website' },
+  { id: 'app',        label: 'App' },
+  { id: 'ai-tool',    label: 'AI Tool' },
+  { id: 'vibecoding', label: 'VibeCoding' },
+  { id: 'games',      label: 'Games' },
+] as const
+
+const CATEGORY_IDS = new Set<string>(CATEGORY_OPTIONS.map(c => c.id))
+
+function getSelectedCategories(tags?: { id: string; name: string }[]): string[] {
+  if (!tags?.length) return []
+  return tags.map(t => t.name.toLowerCase()).filter(n => CATEGORY_IDS.has(n))
+}
+
+/* ── Shared edit-mode styles ── */
+const labelStyle: React.CSSProperties = {
+  display: 'flex', alignItems: 'center', gap: 4,
+  fontSize: '0.6875rem', fontWeight: 700,
+  letterSpacing: '0.1em', textTransform: 'uppercase',
+  color: 'var(--text)',
+  marginBottom: 8,
+}
+
+const editInputStyle: React.CSSProperties = {
+  width: '100%',
+  background: 'var(--surface)',
+  border: '1.5px solid var(--border)',
+  borderRadius: 12,
+  padding: '13px 16px',
+  fontFamily: 'var(--font-sans)',
+  fontSize: '0.9rem',
+  color: 'var(--text)',
+  outline: 'none',
+  transition: 'border-color 150ms, box-shadow 150ms',
+  boxSizing: 'border-box' as const,
+}
+
 export default function PinDetailView({
-  pin,
+  pin: initialPin,
 }: PinDetailViewProps) {
+  const searchParams = useSearchParams()
+  const router = useRouter()
+  const [pin, setPin] = useState(initialPin)
   const [flipped, setFlipped] = useState(false)
   const [similarPins, setSimilarPins] = useState<Pin[]>([])
   const [loadingSimilar, setLoadingSimilar] = useState(true)
@@ -77,6 +120,34 @@ export default function PinDetailView({
   const sentinelRef = useRef<HTMLDivElement>(null)
   const categories = getCategoriesFromTags(pin.tags)
 
+  /* ── Edit mode state ── */
+  const [editing, setEditing] = useState(false)
+  const [editTitle, setEditTitle] = useState(pin.title || '')
+  const [editDescription, setEditDescription] = useState(pin.description || '')
+  const [editLiveUrl, setEditLiveUrl] = useState(pin.live_url || '')
+  const [editRepoUrl, setEditRepoUrl] = useState(pin.repo_url || '')
+  const [editTags, setEditTags] = useState<string[]>(getSelectedCategories(pin.tags))
+  const [editSaving, setEditSaving] = useState(false)
+  const [editError, setEditError] = useState<string | null>(null)
+  const [editFieldErrors, setEditFieldErrors] = useState<Record<string, string>>({})
+  const isOwner = !!userId && userId === pin.owner_id
+
+  // Auto-enter edit mode when navigated with ?edit=true (from PinCard edit button)
+  const editParam = searchParams.get('edit')
+  useEffect(() => {
+    if (editParam === 'true' && isOwner && !editing) {
+      startEditing()
+      // Clean the ?edit param from URL without a navigation
+      router.replace(`/pin/${pin.id}`, { scroll: false })
+    }
+  }, [editParam, isOwner]) // eslint-disable-line react-hooks/exhaustive-deps
+
+  // Keep pin in sync when parent provides a new pin (navigation)
+  useEffect(() => {
+    setPin(initialPin)
+    setEditing(false)
+  }, [initialPin])
+
   // Refs for IntersectionObserver closure freshness
   const hasMoreRef = useRef(hasMore)
   const loadingMoreRef = useRef(loadingMore)
@@ -87,15 +158,7 @@ export default function PinDetailView({
   useEffect(() => { loadingSimilarRef.current = loadingSimilar }, [loadingSimilar])
   useEffect(() => { similarPinsRef.current = similarPins }, [similarPins])
 
-  /* Split recommendations: left-under vs right board (no duplicates) */
-  const leftPins = useMemo(
-    () => similarPins.slice(0, LEFT_PIN_COUNT),
-    [similarPins]
-  )
-  const rightPins = useMemo(
-    () => similarPins.slice(LEFT_PIN_COUNT),
-    [similarPins]
-  )
+  /* All recommendations flow into the right masonry board */
 
   // ── Initial fetch: recommendations + likes in one round-trip ──────────
   useEffect(() => {
@@ -218,24 +281,160 @@ export default function PinDetailView({
     }
   }
 
+  /* ── Edit mode helpers ── */
+  function startEditing() {
+    setEditTitle(pin.title || '')
+    setEditDescription(pin.description || '')
+    setEditLiveUrl(pin.live_url || '')
+    setEditRepoUrl(pin.repo_url || '')
+    setEditTags(getSelectedCategories(pin.tags))
+    setEditError(null)
+    setEditFieldErrors({})
+    setEditing(true)
+  }
+
+  function cancelEditing() {
+    setEditing(false)
+    setEditError(null)
+    setEditFieldErrors({})
+  }
+
+  function validateEdit(): boolean {
+    const errors: Record<string, string> = {}
+    if (!editTitle.trim()) errors.title = 'Title is required'
+    if (editTitle.trim().length > 120) errors.title = 'Title must be 120 characters or fewer'
+    if (!editLiveUrl.trim()) errors.liveUrl = 'Live URL is required'
+    else {
+      try {
+        const u = new URL(editLiveUrl.trim())
+        if (!u.protocol.startsWith('http')) errors.liveUrl = 'URL must start with http:// or https://'
+      } catch {
+        errors.liveUrl = 'Must be a valid URL'
+      }
+    }
+    if (editRepoUrl.trim()) {
+      try {
+        const u = new URL(editRepoUrl.trim())
+        if (!u.protocol.startsWith('http')) errors.repoUrl = 'URL must start with http:// or https://'
+      } catch {
+        errors.repoUrl = 'Must be a valid URL'
+      }
+    }
+    if (editDescription.length > 2000) errors.description = 'Description must be 2000 characters or fewer'
+    setEditFieldErrors(errors)
+    return Object.keys(errors).length === 0
+  }
+
+  async function handleEditSave() {
+    if (!validateEdit()) return
+    setEditSaving(true)
+    setEditError(null)
+
+    try {
+      const body = new FormData()
+      body.append('title', editTitle.trim())
+      body.append('description', editDescription.trim())
+      body.append('live_url', editLiveUrl.trim())
+      body.append('repo_url', editRepoUrl.trim())
+      body.append('tags', editTags.join(','))
+
+      const res = await fetch(`/api/pins/${pin.id}`, { method: 'PATCH', body })
+      const json = await res.json()
+
+      if (!res.ok) {
+        if (res.status === 403) setEditError('You are not authorized to edit this pin.')
+        else if (res.status === 401) setEditError('Please sign in to edit this pin.')
+        else setEditError(json.error || 'Failed to save changes.')
+        return
+      }
+
+      const updatedTags: Tag[] = editTags.map(name => {
+        const existing = pin.tags?.find(t => t.name === name)
+        return existing || { id: name, name }
+      })
+
+      setPin(prev => ({
+        ...prev,
+        title: editTitle.trim(),
+        description: editDescription.trim(),
+        live_url: editLiveUrl.trim(),
+        repo_url: editRepoUrl.trim() || null,
+        tags: updatedTags,
+      }))
+      setEditing(false)
+    } catch {
+      setEditError('Network error. Please try again.')
+    } finally {
+      setEditSaving(false)
+    }
+  }
+
   return (
     <>
       <style>{`
-        .pin-detail-grid {
-          display: grid;
-          grid-template-columns: 1fr;
-          gap: 32px;
+        .pin-detail-layout {
+          display: flex;
+          flex-direction: column;
+          gap: 24px;
           width: 100%;
-          align-items: start;
         }
         @media (min-width: 1024px) {
-          .pin-detail-grid {
-            grid-template-columns: clamp(420px, 40vw, 680px) 1fr;
+          .pin-detail-layout {
+            display: grid;
+            grid-template-columns: minmax(380px, 44%) 1fr;
+            gap: 28px;
+            align-items: start;
           }
+        }
+        @media (min-width: 1536px) {
+          .pin-detail-layout {
+            grid-template-columns: minmax(480px, 42%) 1fr;
+            gap: 36px;
+          }
+        }
+        @media (min-width: 1920px) {
+          .pin-detail-layout {
+            grid-template-columns: minmax(540px, 40%) 1fr;
+            gap: 40px;
+          }
+        }
+        .pin-detail-hero {
+          width: 100%;
+        }
+        @media (min-width: 1024px) {
+          .pin-detail-hero {
+            position: sticky;
+            top: 80px;
+            max-height: calc(100vh - 100px);
+            overflow-y: auto;
+            scrollbar-width: none;
+          }
+          .pin-detail-hero::-webkit-scrollbar { display: none; }
+        }
+        .pin-detail-board {
+          min-width: 0;
         }
         .pin-masonry {
           columns: 220px;
           column-gap: 14px;
+        }
+        @media (min-width: 1280px) {
+          .pin-masonry {
+            columns: 240px;
+            column-gap: 16px;
+          }
+        }
+        @media (min-width: 1536px) {
+          .pin-masonry {
+            columns: 250px;
+            column-gap: 16px;
+          }
+        }
+        @media (min-width: 1920px) {
+          .pin-masonry {
+            columns: 270px;
+            column-gap: 18px;
+          }
         }
         .pin-masonry > * {
           break-inside: avoid;
@@ -243,18 +442,24 @@ export default function PinDetailView({
           content-visibility: auto;
           contain-intrinsic-size: auto 280px;
         }
-        .desktop-only { display: none; }
-        .mobile-only  { display: block; }
-        @media (min-width: 1024px) {
-          .desktop-only { display: block; }
-          .mobile-only  { display: none; }
+        @media (min-width: 1280px) {
+          .pin-masonry > * { margin-bottom: 16px; }
+        }
+        .pin-detail-hero-media {
+          max-height: calc(100vh - 160px);
+          overflow: hidden;
+        }
+        .pin-detail-hero-media img,
+        .pin-detail-hero-media video {
+          max-height: calc(100vh - 160px);
+          object-fit: contain;
         }
         @keyframes spin { to { transform: rotate(360deg) } }
       `}</style>
 
-      <div className="pin-detail-grid">
-        {/* ── LEFT COLUMN: Selected pin + left-under suggestions ── */}
-        <div style={{ display: 'flex', flexDirection: 'column', gap: 16 }}>
+      <div className="pin-detail-layout">
+        {/* ── HERO COLUMN: Selected pin ── */}
+        <div className="pin-detail-hero" style={{ display: 'flex', flexDirection: 'column', gap: 16 }}>
           {/* Pin card wrapper — position:relative for Save button */}
           <div style={{ position: 'relative' }}>
             {/* Flip card */}
@@ -271,6 +476,7 @@ export default function PinDetailView({
               >
                 {/* Front face: Media */}
                 <div
+                  className="pin-detail-hero-media"
                   onClick={() => setFlipped(true)}
                   style={{
                     backfaceVisibility: 'hidden',
@@ -450,149 +656,338 @@ export default function PinDetailView({
 
           </div>
 
-          {/* Title */}
-          <h1 style={{ fontSize: '1.625rem', fontWeight: 800, color: 'var(--text)', lineHeight: 1.25, margin: 0, letterSpacing: '-0.02em' }}>
-            {pin.title}
-          </h1>
-
-          {/* Author */}
-          {pin.profile && (
-            <Link href={`/profile/${pin.profile.username}`} style={{ textDecoration: 'none' }}>
-              <div
-                style={{ display: 'flex', alignItems: 'center', gap: 12, padding: '12px 14px', borderRadius: 16, border: '1.5px solid var(--border)', background: 'var(--bg)', transition: 'border-color 150ms, background 150ms', cursor: 'pointer' }}
-                onMouseEnter={(e) => { e.currentTarget.style.borderColor = 'var(--menthe)'; e.currentTarget.style.background = 'var(--brume)' }}
-                onMouseLeave={(e) => { e.currentTarget.style.borderColor = 'var(--border)'; e.currentTarget.style.background = 'var(--bg)' }}
-              >
-                <div style={{ height: 40, width: 40, borderRadius: '50%', display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: '0.875rem', fontWeight: 700, flexShrink: 0, overflow: 'hidden', background: 'var(--brume)', color: 'var(--menthe)' }}>
-                  {pin.profile.avatar_url ? (
-                    <Image src={pin.profile.avatar_url} alt={pin.profile.display_name || pin.profile.username} width={40} height={40} style={{ width: '100%', height: '100%', objectFit: 'cover' }} unoptimized />
-                  ) : (
-                    (pin.profile.display_name || pin.profile.username).charAt(0).toUpperCase()
-                  )}
-                </div>
-                <div style={{ minWidth: 0 }}>
-                  <p style={{ margin: 0, fontSize: '0.9375rem', fontWeight: 700, color: 'var(--text)', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
-                    {pin.profile.display_name || pin.profile.username}
-                  </p>
-                  <p style={{ margin: 0, fontSize: '0.8125rem', color: 'var(--muted)' }}>
-                    @{pin.profile.username}
-                  </p>
-                </div>
-                <svg style={{ marginLeft: 'auto', flexShrink: 0, color: 'var(--muted)' }} width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
-                  <path d="m9 18 6-6-6-6" />
-                </svg>
+          {editing ? (
+            /* ── INLINE EDIT FORM ── */
+            <div style={{
+              background: '#fff',
+              borderRadius: 20,
+              border: '1.5px solid var(--border)',
+              padding: '28px 24px 24px',
+              display: 'flex',
+              flexDirection: 'column',
+              gap: 18,
+            }}>
+              <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
+                <h2 style={{ fontSize: '1.125rem', fontWeight: 800, color: 'var(--text)', margin: 0, letterSpacing: '-0.02em' }}>
+                  Edit Pin
+                </h2>
+                <button
+                  type="button"
+                  onClick={cancelEditing}
+                  style={{
+                    width: 32, height: 32, borderRadius: '50%',
+                    background: 'var(--surface)', border: 'none',
+                    display: 'flex', alignItems: 'center', justifyContent: 'center',
+                    cursor: 'pointer', color: 'var(--muted)',
+                    transition: 'background 150ms',
+                  }}
+                  onMouseEnter={e => { e.currentTarget.style.background = 'var(--brume)' }}
+                  onMouseLeave={e => { e.currentTarget.style.background = 'var(--surface)' }}
+                >
+                  <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round">
+                    <path d="M18 6 6 18M6 6l12 12"/>
+                  </svg>
+                </button>
               </div>
-            </Link>
-          )}
 
-          {/* Action buttons: Visit Live + Repo + Like */}
-          <div style={{ display: 'flex', gap: 10, flexWrap: 'wrap', alignItems: 'center' }}>
-            <a href={pin.live_url} target="_blank" rel="noopener noreferrer"
-              style={{ flex: 1, minWidth: 120, display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 6, padding: '11px 16px', borderRadius: 14, background: 'var(--menthe)', color: '#fff', fontSize: '0.9375rem', fontWeight: 700, textDecoration: 'none', transition: 'opacity 150ms' }}
-              onMouseEnter={(e) => { e.currentTarget.style.opacity = '0.85' }}
-              onMouseLeave={(e) => { e.currentTarget.style.opacity = '1' }}
-            >
-              <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round">
-                <path d="M18 13v6a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V8a2 2 0 0 1 2-2h6" />
-                <polyline points="15 3 21 3 21 9" />
-                <line x1="10" y1="14" x2="21" y2="3" />
-              </svg>
-              Visit Live
-            </a>
-            <LikeButton
-              pinId={pin.id}
-              currentUserId={userId ?? undefined}
-              onAuthRequired={() => { window.location.href = '/login' }}
-            />
-            {pin.repo_url && (
-              <a href={pin.repo_url} target="_blank" rel="noopener noreferrer"
-                style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 6, padding: '11px 16px', borderRadius: 14, border: '1.5px solid var(--border)', background: 'transparent', color: 'var(--text)', fontSize: '0.9375rem', fontWeight: 600, textDecoration: 'none', transition: 'border-color 150ms, background 150ms' }}
-                onMouseEnter={(e) => { e.currentTarget.style.borderColor = 'var(--menthe)'; e.currentTarget.style.background = 'var(--brume)' }}
-                onMouseLeave={(e) => { e.currentTarget.style.borderColor = 'var(--border)'; e.currentTarget.style.background = 'transparent' }}
-              >
-                <svg width="13" height="13" viewBox="0 0 24 24" fill="currentColor">
-                  <path d="M12 2C6.477 2 2 6.477 2 12c0 4.418 2.865 8.166 6.839 9.489.5.092.682-.217.682-.482 0-.237-.009-.868-.013-1.703-2.782.604-3.369-1.341-3.369-1.341-.454-1.155-1.11-1.463-1.11-1.463-.908-.62.069-.608.069-.608 1.003.07 1.531 1.03 1.531 1.03.892 1.529 2.341 1.087 2.91.832.092-.647.35-1.088.636-1.338-2.22-.253-4.555-1.11-4.555-4.943 0-1.091.39-1.984 1.029-2.683-.103-.253-.446-1.27.098-2.647 0 0 .84-.269 2.75 1.025A9.578 9.578 0 0 1 12 6.836a9.59 9.59 0 0 1 2.504.337c1.909-1.294 2.747-1.025 2.747-1.025.546 1.377.203 2.394.1 2.647.64.699 1.028 1.592 1.028 2.683 0 3.842-2.339 4.687-4.566 4.935.359.309.678.919.678 1.852 0 1.336-.012 2.415-.012 2.743 0 .267.18.578.688.48C19.138 20.163 22 16.418 22 12c0-5.523-4.477-10-10-10z" />
-                </svg>
-                Repo
-              </a>
-            )}
-          </div>
+              {/* Title */}
+              <div>
+                <label style={labelStyle}>
+                  Title <span style={{ color: 'var(--menthe)' }}>*</span>
+                  <span style={{ marginLeft: 'auto', fontSize: '0.75rem', color: 'var(--muted)', fontWeight: 400 }}>{editTitle.length}/120</span>
+                </label>
+                <input
+                  type="text"
+                  value={editTitle}
+                  onChange={e => setEditTitle(e.target.value)}
+                  maxLength={120}
+                  placeholder="My awesome project"
+                  style={{
+                    ...editInputStyle,
+                    borderColor: editFieldErrors.title ? '#ef4444' : 'var(--border)',
+                  }}
+                  onFocus={e => { e.currentTarget.style.borderColor = 'var(--menthe)'; e.currentTarget.style.boxShadow = 'var(--shadow-glow)'; e.currentTarget.style.background = '#fff' }}
+                  onBlur={e => { e.currentTarget.style.borderColor = editFieldErrors.title ? '#ef4444' : 'var(--border)'; e.currentTarget.style.boxShadow = 'none'; e.currentTarget.style.background = 'var(--surface)' }}
+                />
+                {editFieldErrors.title && <p style={{ marginTop: 4, fontSize: '0.75rem', color: '#ef4444' }}>{editFieldErrors.title}</p>}
+              </div>
 
-          {/* ── Left-under suggestions (desktop only) ── */}
-          {!loadingSimilar && leftPins.length > 0 && (
-            <div className="desktop-only" style={{ marginTop: 12 }}>
-              <div className="pin-masonry">
-                {leftPins.map((p) => (
-                  <div key={p.id}>
-                    <PinCard
-                      pin={p}
-                      currentUserId={userId ?? undefined}
-                      initialLikeCount={likesMap[p.id]?.likeCount}
-                      initialLikedByMe={likesMap[p.id]?.likedByMe}
-                    />
+              {/* Description */}
+              <div>
+                <label style={labelStyle}>
+                  Description
+                  <span style={{ marginLeft: 'auto', fontSize: '0.75rem', color: 'var(--muted)', fontWeight: 400 }}>{editDescription.length}/2000</span>
+                </label>
+                <textarea
+                  value={editDescription}
+                  onChange={e => setEditDescription(e.target.value)}
+                  maxLength={2000}
+                  rows={4}
+                  placeholder="What does it do? What stack did you use?"
+                  style={{
+                    ...editInputStyle,
+                    resize: 'none' as const,
+                    lineHeight: 1.6,
+                    borderColor: editFieldErrors.description ? '#ef4444' : 'var(--border)',
+                  }}
+                  onFocus={e => { e.currentTarget.style.borderColor = 'var(--menthe)'; e.currentTarget.style.boxShadow = 'var(--shadow-glow)'; e.currentTarget.style.background = '#fff' }}
+                  onBlur={e => { e.currentTarget.style.borderColor = editFieldErrors.description ? '#ef4444' : 'var(--border)'; e.currentTarget.style.boxShadow = 'none'; e.currentTarget.style.background = 'var(--surface)' }}
+                />
+                {editFieldErrors.description && <p style={{ marginTop: 4, fontSize: '0.75rem', color: '#ef4444' }}>{editFieldErrors.description}</p>}
+              </div>
+
+              {/* Live URL */}
+              <div>
+                <label style={labelStyle}>
+                  Live URL <span style={{ color: 'var(--menthe)' }}>*</span>
+                </label>
+                <input
+                  type="url"
+                  value={editLiveUrl}
+                  onChange={e => setEditLiveUrl(e.target.value)}
+                  placeholder="https://myproject.vercel.app"
+                  style={{
+                    ...editInputStyle,
+                    borderColor: editFieldErrors.liveUrl ? '#ef4444' : 'var(--border)',
+                  }}
+                  onFocus={e => { e.currentTarget.style.borderColor = 'var(--menthe)'; e.currentTarget.style.boxShadow = 'var(--shadow-glow)'; e.currentTarget.style.background = '#fff' }}
+                  onBlur={e => { e.currentTarget.style.borderColor = editFieldErrors.liveUrl ? '#ef4444' : 'var(--border)'; e.currentTarget.style.boxShadow = 'none'; e.currentTarget.style.background = 'var(--surface)' }}
+                />
+                {editFieldErrors.liveUrl && <p style={{ marginTop: 4, fontSize: '0.75rem', color: '#ef4444' }}>{editFieldErrors.liveUrl}</p>}
+              </div>
+
+              {/* Repo URL */}
+              <div>
+                <label style={labelStyle}>Repository URL</label>
+                <input
+                  type="url"
+                  value={editRepoUrl}
+                  onChange={e => setEditRepoUrl(e.target.value)}
+                  placeholder="https://github.com/you/repo (optional)"
+                  style={{
+                    ...editInputStyle,
+                    borderColor: editFieldErrors.repoUrl ? '#ef4444' : 'var(--border)',
+                  }}
+                  onFocus={e => { e.currentTarget.style.borderColor = 'var(--menthe)'; e.currentTarget.style.boxShadow = 'var(--shadow-glow)'; e.currentTarget.style.background = '#fff' }}
+                  onBlur={e => { e.currentTarget.style.borderColor = editFieldErrors.repoUrl ? '#ef4444' : 'var(--border)'; e.currentTarget.style.boxShadow = 'none'; e.currentTarget.style.background = 'var(--surface)' }}
+                />
+                {editFieldErrors.repoUrl && <p style={{ marginTop: 4, fontSize: '0.75rem', color: '#ef4444' }}>{editFieldErrors.repoUrl}</p>}
+              </div>
+
+              {/* Category tags */}
+              <div>
+                <label style={labelStyle}>Category</label>
+                <div style={{ display: 'flex', flexWrap: 'wrap', gap: 8 }}>
+                  {CATEGORY_OPTIONS.map(({ id, label }) => {
+                    const active = editTags.includes(id)
+                    return (
+                      <button
+                        key={id}
+                        type="button"
+                        onClick={() =>
+                          setEditTags(prev =>
+                            prev.includes(id)
+                              ? prev.filter(t => t !== id)
+                              : [...prev, id]
+                          )
+                        }
+                        style={{
+                          padding: '7px 14px',
+                          borderRadius: 10,
+                          border: `1.5px solid ${active ? 'var(--menthe)' : 'var(--border)'}`,
+                          background: active ? 'var(--menthe)' : 'var(--surface)',
+                          color: active ? '#fff' : 'var(--text)',
+                          fontSize: '0.8125rem',
+                          fontWeight: active ? 700 : 500,
+                          cursor: 'pointer',
+                          transition: 'all 120ms',
+                        }}
+                      >
+                        {label}
+                        {active && (
+                          <svg style={{ marginLeft: 6, verticalAlign: 'middle' }} width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="3" strokeLinecap="round">
+                            <polyline points="20 6 9 17 4 12"/>
+                          </svg>
+                        )}
+                      </button>
+                    )
+                  })}
+                </div>
+              </div>
+
+              {/* Error banner */}
+              {editError && (
+                <div style={{
+                  borderRadius: 12, border: '1px solid #fecaca',
+                  background: '#fef2f2', padding: '10px 14px',
+                  fontSize: '0.8125rem', color: '#dc2626',
+                  display: 'flex', alignItems: 'center', gap: 6,
+                }}>
+                  <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round">
+                    <circle cx="12" cy="12" r="10"/><line x1="12" y1="8" x2="12" y2="12"/><line x1="12" y1="16" x2="12.01" y2="16"/>
+                  </svg>
+                  {editError}
+                </div>
+              )}
+
+              {/* Save / Cancel */}
+              <div style={{ display: 'flex', gap: 10 }}>
+                <button
+                  type="button"
+                  onClick={handleEditSave}
+                  disabled={editSaving}
+                  style={{
+                    flex: 1, padding: '12px 0',
+                    borderRadius: 14, border: 'none',
+                    background: editSaving ? 'var(--brume)' : 'var(--menthe)',
+                    color: editSaving ? 'var(--muted)' : '#fff',
+                    fontSize: '0.9375rem', fontWeight: 700,
+                    cursor: editSaving ? 'not-allowed' : 'pointer',
+                    display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 8,
+                    transition: 'opacity 150ms',
+                  }}
+                  onMouseEnter={e => { if (!editSaving) e.currentTarget.style.opacity = '0.88' }}
+                  onMouseLeave={e => { e.currentTarget.style.opacity = '1' }}
+                >
+                  {editSaving ? (
+                    <>
+                      <span style={{ width: 14, height: 14, borderRadius: '50%', border: '2px solid rgba(0,0,0,0.15)', borderTopColor: 'var(--muted)', animation: 'spin .7s linear infinite', display: 'inline-block' }} />
+                      Saving...
+                    </>
+                  ) : 'Save Changes'}
+                </button>
+                <button
+                  type="button"
+                  onClick={cancelEditing}
+                  style={{
+                    padding: '12px 24px',
+                    borderRadius: 14,
+                    border: '1.5px solid var(--border)',
+                    background: 'transparent',
+                    color: 'var(--text)',
+                    fontSize: '0.9375rem', fontWeight: 600,
+                    cursor: 'pointer',
+                    transition: 'border-color 150ms',
+                  }}
+                  onMouseEnter={e => { e.currentTarget.style.borderColor = 'var(--menthe)' }}
+                  onMouseLeave={e => { e.currentTarget.style.borderColor = 'var(--border)' }}
+                >
+                  Cancel
+                </button>
+              </div>
+            </div>
+          ) : (
+            /* ── NORMAL VIEW ── */
+            <>
+              {/* Title + Edit button row */}
+              <div style={{ display: 'flex', alignItems: 'flex-start', gap: 12 }}>
+                <h1 style={{ flex: 1, fontSize: '1.625rem', fontWeight: 800, color: 'var(--text)', lineHeight: 1.25, margin: 0, letterSpacing: '-0.02em' }}>
+                  {pin.title}
+                </h1>
+                {isOwner && (
+                  <button
+                    type="button"
+                    onClick={startEditing}
+                    title="Edit pin"
+                    style={{
+                      flexShrink: 0,
+                      display: 'flex', alignItems: 'center', gap: 6,
+                      padding: '8px 14px',
+                      borderRadius: 12,
+                      border: '1.5px solid var(--border)',
+                      background: 'transparent',
+                      color: 'var(--text)',
+                      fontSize: '0.8125rem', fontWeight: 600,
+                      cursor: 'pointer',
+                      transition: 'border-color 150ms, background 150ms',
+                    }}
+                    onMouseEnter={e => { e.currentTarget.style.borderColor = 'var(--menthe)'; e.currentTarget.style.background = 'var(--brume)' }}
+                    onMouseLeave={e => { e.currentTarget.style.borderColor = 'var(--border)'; e.currentTarget.style.background = 'transparent' }}
+                  >
+                    <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round">
+                      <path d="M11 4H4a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h14a2 2 0 0 0 2-2v-7"/>
+                      <path d="M18.5 2.5a2.121 2.121 0 0 1 3 3L12 15l-4 1 1-4 9.5-9.5z"/>
+                    </svg>
+                    Edit
+                  </button>
+                )}
+              </div>
+
+              {/* Author */}
+              {pin.profile && (
+                <Link href={`/profile/${pin.profile.username}`} style={{ textDecoration: 'none' }}>
+                  <div
+                    style={{ display: 'flex', alignItems: 'center', gap: 12, padding: '12px 14px', borderRadius: 16, border: '1.5px solid var(--border)', background: 'var(--bg)', transition: 'border-color 150ms, background 150ms', cursor: 'pointer' }}
+                    onMouseEnter={(e) => { e.currentTarget.style.borderColor = 'var(--menthe)'; e.currentTarget.style.background = 'var(--brume)' }}
+                    onMouseLeave={(e) => { e.currentTarget.style.borderColor = 'var(--border)'; e.currentTarget.style.background = 'var(--bg)' }}
+                  >
+                    <div style={{ height: 40, width: 40, borderRadius: '50%', display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: '0.875rem', fontWeight: 700, flexShrink: 0, overflow: 'hidden', background: 'var(--brume)', color: 'var(--menthe)' }}>
+                      {pin.profile.avatar_url ? (
+                        <Image src={pin.profile.avatar_url} alt={pin.profile.display_name || pin.profile.username} width={40} height={40} style={{ width: '100%', height: '100%', objectFit: 'cover' }} unoptimized />
+                      ) : (
+                        (pin.profile.display_name || pin.profile.username).charAt(0).toUpperCase()
+                      )}
+                    </div>
+                    <div style={{ minWidth: 0 }}>
+                      <p style={{ margin: 0, fontSize: '0.9375rem', fontWeight: 700, color: 'var(--text)', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
+                        {pin.profile.display_name || pin.profile.username}
+                      </p>
+                      <p style={{ margin: 0, fontSize: '0.8125rem', color: 'var(--muted)' }}>
+                        @{pin.profile.username}
+                      </p>
+                    </div>
+                    <svg style={{ marginLeft: 'auto', flexShrink: 0, color: 'var(--muted)' }} width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+                      <path d="m9 18 6-6-6-6" />
+                    </svg>
                   </div>
-                ))}
+                </Link>
+              )}
+
+              {/* Action buttons: Visit Live + Repo + Like */}
+              <div style={{ display: 'flex', gap: 10, flexWrap: 'wrap', alignItems: 'center' }}>
+                <a href={pin.live_url} target="_blank" rel="noopener noreferrer"
+                  style={{ flex: 1, minWidth: 120, display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 6, padding: '11px 16px', borderRadius: 14, background: 'var(--menthe)', color: '#fff', fontSize: '0.9375rem', fontWeight: 700, textDecoration: 'none', transition: 'opacity 150ms' }}
+                  onMouseEnter={(e) => { e.currentTarget.style.opacity = '0.85' }}
+                  onMouseLeave={(e) => { e.currentTarget.style.opacity = '1' }}
+                >
+                  <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round">
+                    <path d="M18 13v6a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V8a2 2 0 0 1 2-2h6" />
+                    <polyline points="15 3 21 3 21 9" />
+                    <line x1="10" y1="14" x2="21" y2="3" />
+                  </svg>
+                  Visit Live
+                </a>
+                <LikeButton
+                  pinId={pin.id}
+                  currentUserId={userId ?? undefined}
+                  onAuthRequired={() => { window.location.href = '/login' }}
+                />
+                {pin.repo_url && (
+                  <a href={pin.repo_url} target="_blank" rel="noopener noreferrer"
+                    style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 6, padding: '11px 16px', borderRadius: 14, border: '1.5px solid var(--border)', background: 'transparent', color: 'var(--text)', fontSize: '0.9375rem', fontWeight: 600, textDecoration: 'none', transition: 'border-color 150ms, background 150ms' }}
+                    onMouseEnter={(e) => { e.currentTarget.style.borderColor = 'var(--menthe)'; e.currentTarget.style.background = 'var(--brume)' }}
+                    onMouseLeave={(e) => { e.currentTarget.style.borderColor = 'var(--border)'; e.currentTarget.style.background = 'transparent' }}
+                  >
+                    <svg width="13" height="13" viewBox="0 0 24 24" fill="currentColor">
+                      <path d="M12 2C6.477 2 2 6.477 2 12c0 4.418 2.865 8.166 6.839 9.489.5.092.682-.217.682-.482 0-.237-.009-.868-.013-1.703-2.782.604-3.369-1.341-3.369-1.341-.454-1.155-1.11-1.463-1.11-1.463-.908-.62.069-.608.069-.608 1.003.07 1.531 1.03 1.531 1.03.892 1.529 2.341 1.087 2.91.832.092-.647.35-1.088.636-1.338-2.22-.253-4.555-1.11-4.555-4.943 0-1.091.39-1.984 1.029-2.683-.103-.253-.446-1.27.098-2.647 0 0 .84-.269 2.75 1.025A9.578 9.578 0 0 1 12 6.836a9.59 9.59 0 0 1 2.504.337c1.909-1.294 2.747-1.025 2.747-1.025.546 1.377.203 2.394.1 2.647.64.699 1.028 1.592 1.028 2.683 0 3.842-2.339 4.687-4.566 4.935.359.309.678.919.678 1.852 0 1.336-.012 2.415-.012 2.743 0 .267.18.578.688.48C19.138 20.163 22 16.418 22 12c0-5.523-4.477-10-10-10z" />
+                    </svg>
+                    Repo
+                  </a>
+                )}
               </div>
-            </div>
+            </>
           )}
-          {loadingSimilar && (
-            <div className="desktop-only" style={{ marginTop: 12 }}>
-              <div className="pin-masonry">
-                {Array.from({ length: LEFT_PIN_COUNT }).map((_, i) => (
-                  <div key={i} className="animate-pulse" style={{ height: 160 + (i % 3) * 40, borderRadius: 16, background: 'var(--menthe-light)', opacity: 0.4 }} />
-                ))}
-              </div>
-            </div>
-          )}
+
         </div>
 
-        {/* ── RIGHT COLUMN: Board (desktop only) ── */}
-        <div className="desktop-only">
-          <h2 style={{ fontSize: '1.25rem', fontWeight: 700, color: 'var(--text)', margin: '0 0 16px', letterSpacing: '-0.01em' }}>
+        {/* ── CONTINUOUS BOARD: All recommendations ── */}
+        <div className="pin-detail-board">
+          <p style={{ fontSize: '0.8125rem', fontWeight: 600, color: 'var(--muted)', margin: '0 0 14px', letterSpacing: '0.04em', textTransform: 'uppercase' }}>
             More like this
-          </h2>
+          </p>
           {loadingSimilar ? (
             <div className="pin-masonry">
               {Array.from({ length: 12 }).map((_, i) => (
-                <div key={i} className="animate-pulse" style={{ height: 140 + (i % 3) * 60, borderRadius: 16, background: 'var(--menthe-light)', opacity: 0.4 }} />
-              ))}
-            </div>
-          ) : rightPins.length > 0 ? (
-            <div className="pin-masonry">
-              {rightPins.map((p) => (
-                <div key={p.id}>
-                  <PinCard
-                    pin={p}
-                    currentUserId={userId ?? undefined}
-                    initialLikeCount={likesMap[p.id]?.likeCount}
-                    initialLikedByMe={likesMap[p.id]?.likedByMe}
-                  />
-                </div>
-              ))}
-            </div>
-          ) : (
-            <p style={{ color: 'var(--muted)', fontSize: '0.875rem' }}>
-              No similar pins found.
-            </p>
-          )}
-          {/* Loading-more skeletons (desktop) */}
-          {loadingMore && (
-            <div className="pin-masonry" style={{ marginTop: 14 }}>
-              {Array.from({ length: 6 }).map((_, i) => (
-                <div key={`more-d-${i}`} className="animate-pulse" style={{ height: 140 + (i % 3) * 60, borderRadius: 16, background: 'var(--menthe-light)', opacity: 0.4 }} />
-              ))}
-            </div>
-          )}
-        </div>
-
-        {/* ── MOBILE: Unified suggestion grid ── */}
-        <div className="mobile-only">
-          <h2 style={{ fontSize: '1.25rem', fontWeight: 700, color: 'var(--text)', margin: '0 0 16px', letterSpacing: '-0.01em' }}>
-            More like this
-          </h2>
-          {loadingSimilar ? (
-            <div className="pin-masonry">
-              {Array.from({ length: 8 }).map((_, i) => (
                 <div key={i} className="animate-pulse" style={{ height: 140 + (i % 3) * 60, borderRadius: 16, background: 'var(--menthe-light)', opacity: 0.4 }} />
               ))}
             </div>
@@ -614,11 +1009,10 @@ export default function PinDetailView({
               No similar pins found.
             </p>
           )}
-          {/* Loading-more skeletons (mobile) */}
           {loadingMore && (
             <div className="pin-masonry" style={{ marginTop: 14 }}>
-              {Array.from({ length: 4 }).map((_, i) => (
-                <div key={`more-m-${i}`} className="animate-pulse" style={{ height: 140 + (i % 3) * 60, borderRadius: 16, background: 'var(--menthe-light)', opacity: 0.4 }} />
+              {Array.from({ length: 6 }).map((_, i) => (
+                <div key={`more-${i}`} className="animate-pulse" style={{ height: 140 + (i % 3) * 60, borderRadius: 16, background: 'var(--menthe-light)', opacity: 0.4 }} />
               ))}
             </div>
           )}

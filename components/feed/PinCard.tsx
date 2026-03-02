@@ -5,7 +5,6 @@ import Image from 'next/image'
 import Link from 'next/link'
 import { useRouter } from 'next/navigation'
 import type { Pin, Tag } from '@/types'
-import EditPinModal from './EditPinModal'
 import LikeButton from './LikeButton'
 import { useToast } from '@/components/Toast'
 
@@ -161,7 +160,6 @@ export default memo(function PinCard({ pin: initialPin, onSave, currentUserId, o
   const [saved, setSaved] = useState(initialSaved ?? false)
   const [saving, setSaving] = useState(false)
   const [unsaving, setUnsaving] = useState(false)
-  const [showEditModal, setShowEditModal] = useState(false)
   const [adminConfirm, setAdminConfirm] = useState(false)
   const [adminDeleting, setAdminDeleting] = useState(false)
   const [featuring, setFeaturing] = useState(false)
@@ -548,7 +546,7 @@ export default memo(function PinCard({ pin: initialPin, onSave, currentUserId, o
             {isOwner && (
               <button
                 type="button"
-                onClick={e => { e.stopPropagation(); setShowEditModal(true) }}
+                onClick={e => { e.stopPropagation(); router.push(`/pin/${pin.id}?edit=true`) }}
                 title="Edit pin"
                 style={{
                   display: 'flex', alignItems: 'center', justifyContent: 'center',
@@ -677,19 +675,6 @@ export default memo(function PinCard({ pin: initialPin, onSave, currentUserId, o
       </div>
 
       <style>{`@keyframes spin { to { transform: rotate(360deg) } }`}</style>
-
-      {/* Edit modal */}
-      {showEditModal && (
-        <EditPinModal
-          pin={pin}
-          onClose={() => setShowEditModal(false)}
-          onSaved={updated => {
-            setPin(updated)
-            setShowEditModal(false)
-            onEdit?.(updated)
-          }}
-        />
-      )}
     </div>
   )
 })
