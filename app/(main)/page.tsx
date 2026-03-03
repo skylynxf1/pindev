@@ -9,16 +9,8 @@ import AdminSortableGrid from '@/components/feed/AdminSortableGrid'
 import CategoryFilterBar, { type CategoryId, type SortOrder } from '@/components/feed/CategoryFilterBar'
 import { useFeed } from '@/lib/hooks/useFeed'
 import { createClient } from '@/lib/supabase/client'
+import { CATEGORY_TAG_MAP } from '@/lib/categories'
 import type { Pin } from '@/types'
-
-const CATEGORY_TAG_MAP: Record<string, string> = {
-  design: 'design', ui: 'design', ux: 'design',
-  website: 'website', web: 'website', landing: 'website',
-  app: 'app', mobile: 'app', ios: 'app', android: 'app',
-  'ai-tool': 'ai-tool', ai: 'ai-tool', ml: 'ai-tool', llm: 'ai-tool',
-  vibecoding: 'vibecoding', 'vibe-coding': 'vibecoding', vibe: 'vibecoding',
-  games: 'games', game: 'games', gaming: 'games',
-}
 
 /* ─────────────────────────────────────────────────────────────
    AUTH GATE MODAL
