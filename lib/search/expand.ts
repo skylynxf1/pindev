@@ -2,10 +2,16 @@
  * Query expansion: synonyms, basic stemming, normalization.
  *
  * Called server-side before passing the query to the Postgres RPC.
- * The expanded query string is a space-separated union of the original
- * tokens plus any synonym/stem expansions, which broadens the trigram
- * and FTS candidate pool.
+ * Returns both the original normalized query (for trigram scoring)
+ * and the expanded query (for broadening FTS/tag matching).
  */
+
+export interface ExpandedQuery {
+  /** Normalized original input (lowercase, trimmed, collapsed whitespace) */
+  original: string
+  /** Space-separated union of original tokens + synonyms + stems */
+  expanded: string
+}
 
 // ── Domain-specific synonym groups ──────────────────────────────────────────
 // Each array is a group of interchangeable terms. If the user types any
@@ -76,16 +82,13 @@ function basicStem(word: string): string[] {
 
 // ── Main expansion function ─────────────────────────────────────────────────
 
-export function expandQuery(raw: string): string {
+export function expandQuery(raw: string): ExpandedQuery {
   // Normalize: lowercase, collapse whitespace, trim
   const normalized = raw.toLowerCase().replace(/\s+/g, ' ').trim()
-  if (!normalized) return ''
+  if (!normalized) return { original: '', expanded: '' }
 
   const tokens = normalized.split(' ').filter(t => t.length > 0)
   const expanded = new Set<string>(tokens)
-
-  // Also add the full phrase (for trigram matching on multi-word queries)
-  expanded.add(normalized)
 
   for (const token of tokens) {
     // Add synonyms
@@ -103,7 +106,10 @@ export function expandQuery(raw: string): string {
     }
   }
 
-  return [...expanded].join(' ')
+  return {
+    original: normalized,
+    expanded: [...expanded].join(' '),
+  }
 }
 
 /**

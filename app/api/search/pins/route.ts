@@ -101,14 +101,16 @@ export async function GET(request: NextRequest) {
   // ── Keyword present → hybrid ranked search via RPC ────────────────────────
   if (keyword.trim()) {
     // Expand query with synonyms + stemming
-    const expanded = expandQuery(keyword)
+    const { original, expanded } = expandQuery(keyword)
 
     // Call the Postgres RPC that does pg_trgm + FTS + hybrid scoring
+    // Pass original (for trigram scoring) and expanded (for broader recall)
     // Request limit+1 to detect hasMore
     const { data: rpcRows, error: rpcError } = await supabase.rpc(
       'search_pins_ranked',
       {
-        search_query: expanded,
+        original_query: original,
+        expanded_query: expanded,
         tag_filter: tag.trim().toLowerCase(),
         result_limit: limit + 1,
         result_offset: offset,

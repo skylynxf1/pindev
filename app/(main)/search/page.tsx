@@ -90,9 +90,10 @@ export default async function SearchPage({ searchParams }: PageProps) {
 
   if (q.trim()) {
     // Use hybrid RPC for keyword searches
-    const expanded = expandQuery(q)
+    const { original, expanded } = expandQuery(q)
     const { data: rpcRows } = await supabase.rpc('search_pins_ranked', {
-      search_query: expanded,
+      original_query: original,
+      expanded_query: expanded,
       tag_filter: tag.trim().toLowerCase(),
       result_limit: 20,
       result_offset: 0,
