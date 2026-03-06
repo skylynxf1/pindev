@@ -13,6 +13,38 @@ export type AllowedMediaType = (typeof ALLOWED_MEDIA_TYPES)[number]
 
 // ── URL helpers ─────────────────────────────────────────────────────────────
 
+function socialUrlSchema(allowedHosts: string[], exampleMsg: string) {
+  return z.preprocess(
+    (v) => (v == null || v === '' ? null : String(v).trim()),
+    z.string().nullable().refine(
+      (v) => {
+        if (v === null) return true
+        try {
+          const { protocol, hostname } = new URL(v)
+          if (protocol !== 'https:' && protocol !== 'http:') return false
+          return allowedHosts.some((h) => hostname === h || hostname === `www.${h}`)
+        } catch {
+          return false
+        }
+      },
+      { message: exampleMsg }
+    )
+  )
+}
+
+export const linkedinUrlSchema = socialUrlSchema(
+  ['linkedin.com'],
+  'Must be a valid LinkedIn URL (e.g. https://linkedin.com/in/yourname)'
+)
+export const tiktokUrlSchema = socialUrlSchema(
+  ['tiktok.com'],
+  'Must be a valid TikTok URL (e.g. https://tiktok.com/@yourhandle)'
+)
+export const instagramUrlSchema = socialUrlSchema(
+  ['instagram.com'],
+  'Must be a valid Instagram URL (e.g. https://instagram.com/yourusername)'
+)
+
 const urlSchema = z
   .string()
   .trim()
@@ -58,6 +90,10 @@ export const createPinSchema = z.object({
         .filter((t) => t.length > 0 && t.length <= 40)
         .slice(0, 10) // max 10 tags
     }),
+
+  linkedin_url: linkedinUrlSchema,
+  tiktok_url: tiktokUrlSchema,
+  instagram_url: instagramUrlSchema,
 
   agreed_to_rules: z
     .string()

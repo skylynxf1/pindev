@@ -15,6 +15,9 @@ export type Pin = {
   description: string
   live_url: string
   repo_url: string | null
+  linkedin_url?: string | null
+  tiktok_url?: string | null
+  instagram_url?: string | null
   media_url: string
   media_type: 'image' | 'video'
   thumbnail_url: string

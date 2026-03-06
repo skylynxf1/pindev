@@ -36,6 +36,9 @@ export default function EditPinModal({ pin, onClose, onSaved }: EditPinModalProp
   const [description, setDescription] = useState(pin.description || '')
   const [liveUrl, setLiveUrl] = useState(pin.live_url || '')
   const [repoUrl, setRepoUrl] = useState(pin.repo_url || '')
+  const [linkedinUrl, setLinkedinUrl] = useState(pin.linkedin_url || '')
+  const [tiktokUrl, setTiktokUrl] = useState(pin.tiktok_url || '')
+  const [instagramUrl, setInstagramUrl] = useState(pin.instagram_url || '')
   const [selectedTags, setSelectedTags] = useState<string[]>(getSelectedCategories(pin.tags))
   const [saving, setSaving] = useState(false)
   const [error, setError] = useState<string | null>(null)
@@ -63,6 +66,25 @@ export default function EditPinModal({ pin, onClose, onSaved }: EditPinModalProp
       }
     }
     if (description.length > 2000) errors.description = 'Description must be 2000 characters or fewer'
+
+    function validateSocialUrl(val: string, host: string): string | null {
+      if (!val.trim()) return null
+      try {
+        const { protocol, hostname } = new URL(val.trim())
+        if (protocol !== 'https:' && protocol !== 'http:') return `URL must start with http:// or https://`
+        if (hostname !== host && hostname !== `www.${host}`) return `Must be a valid ${host} URL`
+      } catch {
+        return 'Must be a valid URL'
+      }
+      return null
+    }
+    const liErr = validateSocialUrl(linkedinUrl, 'linkedin.com')
+    const ttErr = validateSocialUrl(tiktokUrl, 'tiktok.com')
+    const igErr = validateSocialUrl(instagramUrl, 'instagram.com')
+    if (liErr) errors.linkedinUrl = liErr
+    if (ttErr) errors.tiktokUrl = ttErr
+    if (igErr) errors.instagramUrl = igErr
+
     setFieldErrors(errors)
     return Object.keys(errors).length === 0
   }
@@ -78,6 +100,9 @@ export default function EditPinModal({ pin, onClose, onSaved }: EditPinModalProp
       body.append('description', description.trim())
       body.append('live_url', liveUrl.trim())
       body.append('repo_url', repoUrl.trim())
+      body.append('linkedin_url', linkedinUrl.trim())
+      body.append('tiktok_url', tiktokUrl.trim())
+      body.append('instagram_url', instagramUrl.trim())
       body.append('tags', selectedTags.join(','))
 
       const res = await fetch(`/api/pins/${pin.id}`, { method: 'PATCH', body })
@@ -102,6 +127,9 @@ export default function EditPinModal({ pin, onClose, onSaved }: EditPinModalProp
         description: description.trim(),
         live_url: liveUrl.trim(),
         repo_url: repoUrl.trim() || null,
+        linkedin_url: linkedinUrl.trim() || null,
+        tiktok_url: tiktokUrl.trim() || null,
+        instagram_url: instagramUrl.trim() || null,
         tags: updatedTags,
       }
 
@@ -253,6 +281,65 @@ export default function EditPinModal({ pin, onClose, onSaved }: EditPinModalProp
               onBlur={e => { (e.currentTarget as HTMLInputElement).style.borderColor = fieldErrors.repoUrl ? '#ef4444' : 'var(--border)' }}
             />
             {fieldErrors.repoUrl && <p style={errorTextStyle}>{fieldErrors.repoUrl}</p>}
+          </div>
+
+          {/* Social Links */}
+          <div>
+            <label style={{ ...labelStyle, marginBottom: 4 }}>
+              Social Links
+              <span style={{ fontSize: '0.6875rem', fontWeight: 400, textTransform: 'none', letterSpacing: 0, color: 'var(--muted)', marginLeft: 6 }}>· optional but recommended</span>
+            </label>
+            <div style={{ display: 'flex', flexDirection: 'column', gap: 10, marginTop: 8 }}>
+              {/* LinkedIn */}
+              <div>
+                <label style={{ ...labelStyle, marginBottom: 4 }}>
+                  <svg width="12" height="12" viewBox="0 0 24 24" fill="currentColor" style={{ color: 'var(--menthe)' }}>
+                    <path d="M16 8a6 6 0 0 1 6 6v7h-4v-7a2 2 0 0 0-2-2 2 2 0 0 0-2 2v7h-4v-7a6 6 0 0 1 6-6z"/>
+                    <rect x="2" y="9" width="4" height="12"/><circle cx="4" cy="4" r="2"/>
+                  </svg>
+                  LinkedIn
+                </label>
+                <input type="url" value={linkedinUrl} onChange={e => setLinkedinUrl(e.target.value)}
+                  placeholder="https://linkedin.com/in/yourname"
+                  style={{ ...inputBaseStyle, borderColor: fieldErrors.linkedinUrl ? '#ef4444' : 'var(--border)' }}
+                  onFocus={e => { (e.currentTarget as HTMLInputElement).style.borderColor = 'var(--menthe)' }}
+                  onBlur={e => { (e.currentTarget as HTMLInputElement).style.borderColor = fieldErrors.linkedinUrl ? '#ef4444' : 'var(--border)' }}
+                />
+                {fieldErrors.linkedinUrl && <p style={errorTextStyle}>{fieldErrors.linkedinUrl}</p>}
+              </div>
+              {/* TikTok */}
+              <div>
+                <label style={{ ...labelStyle, marginBottom: 4 }}>
+                  <svg width="12" height="12" viewBox="0 0 24 24" fill="currentColor" style={{ color: 'var(--menthe)' }}>
+                    <path d="M19.59 6.69a4.83 4.83 0 0 1-3.77-4.25V2h-3.45v13.67a2.89 2.89 0 0 1-2.88 2.5 2.89 2.89 0 0 1-2.89-2.89 2.89 2.89 0 0 1 2.89-2.89c.28 0 .54.04.79.1V9.01a6.34 6.34 0 0 0-.79-.05 6.34 6.34 0 0 0-6.34 6.34 6.34 6.34 0 0 0 6.34 6.34 6.34 6.34 0 0 0 6.33-6.34V8.69a8.18 8.18 0 0 0 4.78 1.52V6.76a4.85 4.85 0 0 1-1.01-.07z"/>
+                  </svg>
+                  TikTok
+                </label>
+                <input type="url" value={tiktokUrl} onChange={e => setTiktokUrl(e.target.value)}
+                  placeholder="https://tiktok.com/@yourhandle"
+                  style={{ ...inputBaseStyle, borderColor: fieldErrors.tiktokUrl ? '#ef4444' : 'var(--border)' }}
+                  onFocus={e => { (e.currentTarget as HTMLInputElement).style.borderColor = 'var(--menthe)' }}
+                  onBlur={e => { (e.currentTarget as HTMLInputElement).style.borderColor = fieldErrors.tiktokUrl ? '#ef4444' : 'var(--border)' }}
+                />
+                {fieldErrors.tiktokUrl && <p style={errorTextStyle}>{fieldErrors.tiktokUrl}</p>}
+              </div>
+              {/* Instagram */}
+              <div>
+                <label style={{ ...labelStyle, marginBottom: 4 }}>
+                  <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" style={{ color: 'var(--menthe)' }}>
+                    <rect x="2" y="2" width="20" height="20" rx="5" ry="5"/><path d="M16 11.37A4 4 0 1 1 12.63 8 4 4 0 0 1 16 11.37z"/><line x1="17.5" y1="6.5" x2="17.51" y2="6.5"/>
+                  </svg>
+                  Instagram
+                </label>
+                <input type="url" value={instagramUrl} onChange={e => setInstagramUrl(e.target.value)}
+                  placeholder="https://instagram.com/yourusername"
+                  style={{ ...inputBaseStyle, borderColor: fieldErrors.instagramUrl ? '#ef4444' : 'var(--border)' }}
+                  onFocus={e => { (e.currentTarget as HTMLInputElement).style.borderColor = 'var(--menthe)' }}
+                  onBlur={e => { (e.currentTarget as HTMLInputElement).style.borderColor = fieldErrors.instagramUrl ? '#ef4444' : 'var(--border)' }}
+                />
+                {fieldErrors.instagramUrl && <p style={errorTextStyle}>{fieldErrors.instagramUrl}</p>}
+              </div>
+            </div>
           </div>
 
           {/* Category tags */}

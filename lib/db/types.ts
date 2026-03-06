@@ -86,3 +86,18 @@ export type PinSearchParams = {
 export type QueryResult<T> =
   | { data: T; error: null }
   | { data: null; error: string }
+
+// ── Comments ──────────────────────────────────────────────────────────────────
+
+export type DbComment = {
+  id: string
+  pin_id: string
+  user_id: string
+  body: string
+  created_at: string
+  updated_at: string
+}
+
+export type DbCommentWithProfile = DbComment & {
+  profile: Pick<DbProfile, 'username' | 'display_name' | 'avatar_url'>
+}

@@ -1,0 +1,4 @@
+ALTER TABLE pins
+  ADD COLUMN linkedin_url  TEXT DEFAULT NULL,
+  ADD COLUMN tiktok_url    TEXT DEFAULT NULL,
+  ADD COLUMN instagram_url TEXT DEFAULT NULL;

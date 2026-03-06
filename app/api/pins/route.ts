@@ -94,6 +94,9 @@ export async function POST(request: NextRequest) {
     description: formData.get('description') ?? '',
     live_url: formData.get('live_url'),
     repo_url: formData.get('repo_url') ?? '',
+    linkedin_url: formData.get('linkedin_url') ?? '',
+    tiktok_url: formData.get('tiktok_url') ?? '',
+    instagram_url: formData.get('instagram_url') ?? '',
     tags: formData.get('tags') ?? '',
     agreed_to_rules: formData.get('agreed_to_rules'),
   }
@@ -104,7 +107,7 @@ export async function POST(request: NextRequest) {
     return errorResponse(first?.message ?? 'Invalid input')
   }
 
-  const { title, description, live_url, repo_url, tags } = parsed.data
+  const { title, description, live_url, repo_url, tags, linkedin_url, tiktok_url, instagram_url } = parsed.data
 
   // ── 5. Upload media to Storage ─────────────────────────────────────────────
   let mediaUrl: string
@@ -149,6 +152,9 @@ export async function POST(request: NextRequest) {
       description,
       live_url,
       repo_url,
+      linkedin_url:  linkedin_url  ?? null,
+      tiktok_url:    tiktok_url    ?? null,
+      instagram_url: instagram_url ?? null,
       media_url: mediaUrl,
       media_type: isVideoType(mediaFile.type) ? 'video' : 'image',
       thumbnail_url: thumbnailUrl,

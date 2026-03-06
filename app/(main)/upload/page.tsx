@@ -384,6 +384,9 @@ export default function UploadPage() {
   const [description, setDescription] = useState('')
   const [liveUrl, setLiveUrl] = useState('')
   const [repoUrl, setRepoUrl] = useState('')
+  const [linkedinUrl, setLinkedinUrl] = useState('')
+  const [tiktokUrl, setTiktokUrl] = useState('')
+  const [instagramUrl, setInstagramUrl] = useState('')
   const [selectedTags, setSelectedTags] = useState<string[]>([])
   const [agreedToRules, setAgreedToRules] = useState(false)
 
@@ -417,7 +420,7 @@ export default function UploadPage() {
 
       const { data: pin } = await supabase
         .from('pins')
-        .select('id, title, description, live_url, repo_url, thumbnail_url, media_url, media_type, owner_id, pin_tags(tags(name))')
+        .select('id, title, description, live_url, repo_url, linkedin_url, tiktok_url, instagram_url, thumbnail_url, media_url, media_type, owner_id, pin_tags(tags(name))')
         .eq('id', editId)
         .single()
 
@@ -427,6 +430,9 @@ export default function UploadPage() {
       setDescription(pin.description || '')
       setLiveUrl(pin.live_url || '')
       setRepoUrl(pin.repo_url || '')
+      setLinkedinUrl((pin as Record<string, unknown>).linkedin_url as string || '')
+      setTiktokUrl((pin as Record<string, unknown>).tiktok_url as string || '')
+      setInstagramUrl((pin as Record<string, unknown>).instagram_url as string || '')
       setIsVideo(pin.media_type === 'video')
       const imgUrl = pin.thumbnail_url || pin.media_url
       setExistingMediaUrl(imgUrl)
@@ -498,6 +504,9 @@ export default function UploadPage() {
     body.append('description', description)
     body.append('live_url', liveUrl)
     body.append('repo_url', repoUrl)
+    body.append('linkedin_url', linkedinUrl.trim())
+    body.append('tiktok_url', tiktokUrl.trim())
+    body.append('instagram_url', instagramUrl.trim())
     body.append('tags', selectedTags.join(','))
     if (!editId) body.append('agreed_to_rules', String(agreedToRules))
     const url = editId ? `/api/pins/${editId}` : '/api/pins'
@@ -815,26 +824,66 @@ export default function UploadPage() {
             </div>
           </div>
 
-          {/* ── Description + Repo/Tags row ── */}
-          <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 24, alignItems: 'start' }}>
+          {/* ── Description + Repo/Tags/Socials row ── */}
+          <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 24, alignItems: 'stretch' }}>
 
-            {/* Description */}
-            <div>
-              <SectionLabel htmlFor="description" counter={`${description.length}/2000`}>
-                Description
-              </SectionLabel>
-              <StyledTextarea
-                id="description"
-                placeholder="What does it do? What stack did you use? Tell the community the 'vibe' of your code..."
-                value={description}
-                onChange={e => setDescription(e.target.value)}
-                maxLength={2000}
-                rows={7}
-                style={{ height: 'auto' }}
-              />
+            {/* Description + Social Links */}
+            <div style={{ display: 'flex', flexDirection: 'column', gap: 16 }}>
+              <div>
+                <SectionLabel htmlFor="description" counter={`${description.length}/2000`}>
+                  Description
+                </SectionLabel>
+                <StyledTextarea
+                  id="description"
+                  placeholder="What does it do? What stack did you use? Tell the community the 'vibe' of your code..."
+                  value={description}
+                  onChange={e => setDescription(e.target.value)}
+                  maxLength={2000}
+                  rows={7}
+                  style={{ height: 'auto' }}
+                />
+              </div>
+
+              {/* Social Links */}
+              <div>
+                <SectionLabel
+                  icon={
+                    <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.2" strokeLinecap="round" strokeLinejoin="round">
+                      <path d="M17 2h3a2 2 0 0 1 2 2v16a2 2 0 0 1-2 2H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h3"/>
+                      <path d="M12 2v10"/><path d="m9 9 3-3 3 3"/>
+                    </svg>
+                  }
+                >
+                  Social Links
+                  <span style={{ fontSize: '0.6875rem', fontWeight: 400, textTransform: 'none', letterSpacing: 0, color: 'var(--muted)', marginLeft: 6 }}>· optional</span>
+                </SectionLabel>
+                <div style={{ display: 'flex', flexDirection: 'column', gap: 8 }}>
+                  <StyledInput
+                    id="linkedin-url"
+                    type="url"
+                    placeholder="LinkedIn — https://linkedin.com/in/yourname"
+                    value={linkedinUrl}
+                    onChange={e => setLinkedinUrl(e.target.value)}
+                  />
+                  <StyledInput
+                    id="tiktok-url"
+                    type="url"
+                    placeholder="TikTok — https://tiktok.com/@yourhandle"
+                    value={tiktokUrl}
+                    onChange={e => setTiktokUrl(e.target.value)}
+                  />
+                  <StyledInput
+                    id="instagram-url"
+                    type="url"
+                    placeholder="Instagram — https://instagram.com/yourusername"
+                    value={instagramUrl}
+                    onChange={e => setInstagramUrl(e.target.value)}
+                  />
+                </div>
+              </div>
             </div>
 
-            {/* Repo URL + Tags stacked */}
+            {/* Repo URL + Category stacked */}
             <div style={{ display: 'flex', flexDirection: 'column', gap: 20 }}>
 
               {/* Repo URL */}
@@ -922,6 +971,8 @@ export default function UploadPage() {
                   })}
                 </div>
               </div>
+
+
             </div>
           </div>
 

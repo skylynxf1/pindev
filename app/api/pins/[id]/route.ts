@@ -1,6 +1,6 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { createClient } from '@/lib/supabase/server'
-import { validateMediaFile, validateThumbnailFile, isVideoType } from '@/lib/validators/pin'
+import { validateMediaFile, validateThumbnailFile, isVideoType, linkedinUrlSchema, tiktokUrlSchema, instagramUrlSchema } from '@/lib/validators/pin'
 
 const BUCKET = 'pin-media'
 
@@ -127,6 +127,14 @@ export async function PATCH(
   const live_url = String(formData.get('live_url') || '').trim()
   const repo_url = String(formData.get('repo_url') || '').trim() || null
   const tagsRaw = String(formData.get('tags') || '')
+
+  // Validate social URLs
+  const linkedinParsed  = linkedinUrlSchema.safeParse(formData.get('linkedin_url')  ?? '')
+  const tiktokParsed    = tiktokUrlSchema.safeParse(formData.get('tiktok_url')    ?? '')
+  const instagramParsed = instagramUrlSchema.safeParse(formData.get('instagram_url') ?? '')
+  if (!linkedinParsed.success)  return errorResponse(linkedinParsed.error.issues[0]?.message  ?? 'Invalid LinkedIn URL')
+  if (!tiktokParsed.success)    return errorResponse(tiktokParsed.error.issues[0]?.message    ?? 'Invalid TikTok URL')
+  if (!instagramParsed.success) return errorResponse(instagramParsed.error.issues[0]?.message ?? 'Invalid Instagram URL')
   const tags = tagsRaw.split(',').map(t => t.trim()).filter(Boolean)
 
   if (!title || title.length < 2) return errorResponse('Title is required')
@@ -172,7 +180,13 @@ export async function PATCH(
 
   const { error: updateError } = await supabase
     .from('pins')
-    .update({ title, description, live_url, repo_url, media_url: mediaUrl, thumbnail_url: thumbnailUrl, media_type: mediaType })
+    .update({
+      title, description, live_url, repo_url,
+      linkedin_url:  linkedinParsed.data  ?? null,
+      tiktok_url:    tiktokParsed.data    ?? null,
+      instagram_url: instagramParsed.data ?? null,
+      media_url: mediaUrl, thumbnail_url: thumbnailUrl, media_type: mediaType,
+    })
     .eq('id', id)
     .eq('owner_id', user.id)
 
