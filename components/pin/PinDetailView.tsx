@@ -49,7 +49,7 @@ function getCategoriesFromTags(tags?: Tag[]) {
 
 const BATCH_SIZE = 20
 
-/* ── Share Dropdown (Pinterest-style) ── */
+/* ── Share Dropdown ── */
 
 function ShareDropdown({ onClose }: { onClose: () => void }) {
   const ref = useRef<HTMLDivElement>(null)
@@ -263,7 +263,7 @@ export default function PinDetailView({ pin: initialPin }: PinDetailViewProps) {
   async function handleSave() {
     if (!userId || saving) return
     const wasSaved = saved
-    setSaved(!wasSaved) // optimistic
+    setSaved(!wasSaved)
     setSaving(true)
     try {
       const res = await fetch('/api/saved-pins', {
@@ -271,9 +271,9 @@ export default function PinDetailView({ pin: initialPin }: PinDetailViewProps) {
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ pin_id: pin.id }),
       })
-      if (!res.ok) setSaved(wasSaved) // rollback
+      if (!res.ok) setSaved(wasSaved)
     } catch {
-      setSaved(wasSaved) // rollback
+      setSaved(wasSaved)
     } finally {
       setSaving(false)
     }
@@ -287,8 +287,6 @@ export default function PinDetailView({ pin: initialPin }: PinDetailViewProps) {
     setShowShare(prev => !prev)
   }
 
-  // ── Icon button helper ──
-
   const iconBtnStyle: React.CSSProperties = {
     display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 5,
     background: 'transparent', border: 'none', padding: '8px 10px', borderRadius: 20,
@@ -299,298 +297,411 @@ export default function PinDetailView({ pin: initialPin }: PinDetailViewProps) {
   return (
     <>
       <style>{`
-        .pin-detail-layout { display: flex; flex-direction: column; gap: 24px; width: 100%; }
-        @media (min-width: 1024px) { .pin-detail-layout { display: grid; grid-template-columns: minmax(380px, 44%) 1fr; gap: 28px; align-items: start; } }
-        @media (min-width: 1536px) { .pin-detail-layout { grid-template-columns: minmax(480px, 42%) 1fr; gap: 36px; } }
-        @media (min-width: 1920px) { .pin-detail-layout { grid-template-columns: minmax(540px, 40%) 1fr; gap: 40px; } }
-        .pin-detail-hero { width: 100%; }
-        @media (min-width: 1024px) { .pin-detail-hero { position: sticky; top: 80px; max-height: calc(100vh - 100px); overflow-y: auto; scrollbar-width: none; } .pin-detail-hero::-webkit-scrollbar { display: none; } }
-        .pin-detail-board { min-width: 0; }
-        .pin-masonry { columns: 220px; column-gap: 14px; }
-        @media (min-width: 1280px) { .pin-masonry { columns: 240px; column-gap: 16px; } }
-        @media (min-width: 1536px) { .pin-masonry { columns: 250px; column-gap: 16px; } }
-        @media (min-width: 1920px) { .pin-masonry { columns: 270px; column-gap: 18px; } }
-        .pin-masonry > * { break-inside: avoid; margin-bottom: 14px; content-visibility: auto; contain-intrinsic-size: auto 280px; }
-        @media (min-width: 1280px) { .pin-masonry > * { margin-bottom: 16px; } }
-        .pin-detail-hero-media { overflow: hidden; }
-        .pin-detail-hero-media img, .pin-detail-hero-media video { object-fit: contain; }
-        .pin-detail-action-bar { position: sticky; top: 0; z-index: 10; background: var(--bg); border-bottom: 1px solid var(--border); border-radius: 24px 24px 0 0; padding: 12px 18px; display: flex; align-items: center; justify-content: space-between; }
+        /* ── PAGE-LEVEL TWO-COLUMN LAYOUT ── */
+        .pdv-page {
+          max-width: 2400px;
+          margin: 0 auto;
+          padding: 12px clamp(16px, 2vw, 48px) 60px;
+        }
+
+        /* Mobile: single column */
+        .pdv-layout {
+          display: flex;
+          flex-direction: column;
+          gap: 32px;
+          width: 100%;
+        }
+
+        /* Desktop: side-by-side, hero left + board right */
+        @media (min-width: 1024px) {
+          .pdv-layout {
+            display: grid;
+            grid-template-columns: minmax(380px, 480px) 1fr;
+            gap: 32px;
+            align-items: start;
+          }
+        }
+        @media (min-width: 1280px) {
+          .pdv-layout { grid-template-columns: minmax(420px, 520px) 1fr; gap: 36px; }
+        }
+        @media (min-width: 1536px) {
+          .pdv-layout { grid-template-columns: minmax(480px, 560px) 1fr; gap: 40px; }
+        }
+        @media (min-width: 1920px) {
+          .pdv-layout { grid-template-columns: minmax(520px, 600px) 1fr; gap: 48px; }
+        }
+
+        /* ── HERO (left column) ── */
+        .pdv-hero {
+          width: 100%;
+        }
+        @media (min-width: 1024px) {
+          .pdv-hero {
+            position: sticky;
+            top: 80px;
+            max-height: calc(100vh - 100px);
+            overflow-y: auto;
+            scrollbar-width: none;
+          }
+          .pdv-hero::-webkit-scrollbar { display: none; }
+        }
+
+        /* Hero card — elevated closeup */
+        .pdv-hero-card {
+          border-radius: 24px;
+          background: var(--bg);
+          box-shadow: 0 4px 24px rgba(0,0,0,0.08);
+          overflow: hidden;
+        }
+
+        /* Action bar inside hero */
+        .pdv-action-bar {
+          position: sticky;
+          top: 0;
+          z-index: 10;
+          background: var(--bg);
+          border-bottom: 1px solid var(--border);
+          border-radius: 24px 24px 0 0;
+          padding: 10px 18px;
+          display: flex;
+          align-items: center;
+          justify-content: space-between;
+        }
+
+        /* Media container */
+        .pdv-media {
+          overflow: hidden;
+          background: var(--brume);
+        }
+        .pdv-media img, .pdv-media video {
+          width: 100%;
+          height: auto;
+          display: block;
+          object-fit: contain;
+        }
+
+        /* ── BOARD (right column) ── */
+        .pdv-board {
+          min-width: 0;
+        }
+
+        /* Board heading */
+        .pdv-board-heading {
+          font-size: 1rem;
+          font-weight: 700;
+          color: var(--text);
+          margin: 0 0 16px;
+          padding: 0 2px;
+        }
+
+        /* Masonry */
+        .pdv-masonry {
+          columns: 2;
+          column-gap: 14px;
+        }
+        @media (min-width: 640px) and (max-width: 1023px) {
+          .pdv-masonry { columns: 3; }
+        }
+        @media (min-width: 1024px) {
+          .pdv-masonry { columns: 2; column-gap: 14px; }
+        }
+        @media (min-width: 1280px) {
+          .pdv-masonry { columns: 3; column-gap: 16px; }
+        }
+        @media (min-width: 1536px) {
+          .pdv-masonry { columns: 3; column-gap: 16px; }
+        }
+        @media (min-width: 1920px) {
+          .pdv-masonry { columns: 4; column-gap: 18px; }
+        }
+        .pdv-masonry > * {
+          break-inside: avoid;
+          margin-bottom: 14px;
+          content-visibility: auto;
+          contain-intrinsic-size: auto 280px;
+        }
+        @media (min-width: 1280px) {
+          .pdv-masonry > * { margin-bottom: 16px; }
+        }
+
         @keyframes spin { to { transform: rotate(360deg) } }
       `}</style>
 
-      <div className="pin-detail-layout">
-        {/* ── HERO COLUMN ── */}
-        <div className="pin-detail-hero">
+      <div className="pdv-page">
+        <div className="pdv-layout">
 
-          {/* ── UNIFIED PIN CARD ── */}
-          <div style={{ borderRadius: 24, border: '1.5px solid var(--border)', background: 'var(--bg)', boxShadow: '0 2px 16px rgba(0,0,0,0.06)', overflow: 'hidden' }}>
+          {/* ══════════════════════════════════════════════════════════════════════
+              HERO COLUMN — Selected pin closeup
+              ══════════════════════════════════════════════════════════════════════ */}
+          <div className="pdv-hero">
+            <div className="pdv-hero-card">
 
-            {/* ── STICKY ACTION BAR (above media, Pinterest-style) ── */}
-            <div className="pin-detail-action-bar">
-              {/* Left: Like, Comment, Share, Socials */}
-              <div style={{ display: 'flex', alignItems: 'center', gap: 2 }}>
-                <LikeButton
-                  pinId={pin.id}
-                  currentUserId={userId ?? undefined}
-                  onAuthRequired={() => { window.location.href = '/login' }}
-                  iconSize={20}
-                />
+              {/* ── ACTION BAR ── */}
+              <div className="pdv-action-bar">
+                {/* Left actions */}
+                <div style={{ display: 'flex', alignItems: 'center', gap: 2 }}>
+                  <LikeButton
+                    pinId={pin.id}
+                    currentUserId={userId ?? undefined}
+                    onAuthRequired={() => { window.location.href = '/login' }}
+                    iconSize={20}
+                  />
 
-                <button
-                  onClick={() => commentRef.current?.scrollToComments()}
-                  title="Comments"
-                  style={iconBtnStyle}
-                  onMouseEnter={(e) => { e.currentTarget.style.color = 'var(--text)'; e.currentTarget.style.background = 'var(--brume)' }}
-                  onMouseLeave={(e) => { e.currentTarget.style.color = 'var(--muted)'; e.currentTarget.style.background = 'transparent' }}
-                >
-                  <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
-                    <path d="M12 21a9 9 0 1 0-9-9c0 1.488.36 2.89 1 4.127L3 21l4.873-1c1.236.64 2.64 1 4.127 1z" />
-                  </svg>
-                </button>
-
-                <div style={{ position: 'relative' }}>
                   <button
-                    onClick={handleShare}
-                    title="Share"
-                    style={{ ...iconBtnStyle, background: showShare ? 'var(--brume)' : 'transparent', color: showShare ? 'var(--text)' : 'var(--muted)' }}
-                    onMouseEnter={(e) => { e.currentTarget.style.color = 'var(--text)'; e.currentTarget.style.background = 'var(--brume)' }}
-                    onMouseLeave={(e) => { if (!showShare) { e.currentTarget.style.color = 'var(--muted)'; e.currentTarget.style.background = 'transparent' } }}
-                  >
-                    <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
-                      <path d="M4 12v8a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2v-8" />
-                      <polyline points="16 6 12 2 8 6" />
-                      <line x1="12" y1="2" x2="12" y2="15" />
-                    </svg>
-                  </button>
-                  {showShare && <ShareDropdown onClose={() => setShowShare(false)} />}
-                </div>
-
-                {pin.linkedin_url && (
-                  <a href={pin.linkedin_url} target="_blank" rel="noopener noreferrer" title="LinkedIn"
-                    style={{ ...iconBtnStyle, textDecoration: 'none' }}
-                    onMouseEnter={(e) => { (e.currentTarget as HTMLElement).style.color = 'var(--text)'; (e.currentTarget as HTMLElement).style.background = 'var(--brume)' }}
-                    onMouseLeave={(e) => { (e.currentTarget as HTMLElement).style.color = 'var(--muted)'; (e.currentTarget as HTMLElement).style.background = 'transparent' }}
-                  >
-                    <svg width="18" height="18" viewBox="0 0 24 24" fill="currentColor"><path d="M16 8a6 6 0 0 1 6 6v7h-4v-7a2 2 0 0 0-2-2 2 2 0 0 0-2 2v7h-4v-7a6 6 0 0 1 6-6z"/><rect x="2" y="9" width="4" height="12"/><circle cx="4" cy="4" r="2"/></svg>
-                  </a>
-                )}
-                {pin.tiktok_url && (
-                  <a href={pin.tiktok_url} target="_blank" rel="noopener noreferrer" title="TikTok"
-                    style={{ ...iconBtnStyle, textDecoration: 'none' }}
-                    onMouseEnter={(e) => { (e.currentTarget as HTMLElement).style.color = 'var(--text)'; (e.currentTarget as HTMLElement).style.background = 'var(--brume)' }}
-                    onMouseLeave={(e) => { (e.currentTarget as HTMLElement).style.color = 'var(--muted)'; (e.currentTarget as HTMLElement).style.background = 'transparent' }}
-                  >
-                    <svg width="18" height="18" viewBox="0 0 24 24" fill="currentColor"><path d="M19.59 6.69a4.83 4.83 0 0 1-3.77-4.25V2h-3.45v13.67a2.89 2.89 0 0 1-2.88 2.5 2.89 2.89 0 0 1-2.89-2.89 2.89 2.89 0 0 1 2.89-2.89c.28 0 .54.04.79.1V9.01a6.34 6.34 0 0 0-.79-.05 6.34 6.34 0 0 0-6.34 6.34 6.34 6.34 0 0 0 6.34 6.34 6.34 6.34 0 0 0 6.33-6.34V8.69a8.18 8.18 0 0 0 4.78 1.52V6.76a4.85 4.85 0 0 1-1.01-.07z"/></svg>
-                  </a>
-                )}
-                {pin.instagram_url && (
-                  <a href={pin.instagram_url} target="_blank" rel="noopener noreferrer" title="Instagram"
-                    style={{ ...iconBtnStyle, textDecoration: 'none' }}
-                    onMouseEnter={(e) => { (e.currentTarget as HTMLElement).style.color = 'var(--text)'; (e.currentTarget as HTMLElement).style.background = 'var(--brume)' }}
-                    onMouseLeave={(e) => { (e.currentTarget as HTMLElement).style.color = 'var(--muted)'; (e.currentTarget as HTMLElement).style.background = 'transparent' }}
-                  >
-                    <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><rect x="2" y="2" width="20" height="20" rx="5" ry="5"/><path d="M16 11.37A4 4 0 1 1 12.63 8 4 4 0 0 1 16 11.37z"/><line x1="17.5" y1="6.5" x2="17.51" y2="6.5"/></svg>
-                  </a>
-                )}
-              </div>
-
-              {/* Right: Edit + Save */}
-              <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
-                {isOwner && (
-                  <button type="button" onClick={handleEditClick} title="Edit pin"
-                    style={{ ...iconBtnStyle }}
+                    onClick={() => commentRef.current?.scrollToComments()}
+                    title="Comments"
+                    style={iconBtnStyle}
                     onMouseEnter={(e) => { e.currentTarget.style.color = 'var(--text)'; e.currentTarget.style.background = 'var(--brume)' }}
                     onMouseLeave={(e) => { e.currentTarget.style.color = 'var(--muted)'; e.currentTarget.style.background = 'transparent' }}
                   >
-                    <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round">
-                      <path d="M11 4H4a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h14a2 2 0 0 0 2-2v-7"/>
-                      <path d="M18.5 2.5a2.121 2.121 0 0 1 3 3L12 15l-4 1 1-4 9.5-9.5z"/>
+                    <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+                      <path d="M12 21a9 9 0 1 0-9-9c0 1.488.36 2.89 1 4.127L3 21l4.873-1c1.236.64 2.64 1 4.127 1z" />
                     </svg>
                   </button>
-                )}
-                {userId !== undefined && (
-                  <button
-                    onClick={handleSave}
-                    disabled={saving || !userId}
-                    title={!userId ? 'Sign in to save' : saved ? 'Unsave' : 'Save'}
-                    style={{
-                      display: 'flex', alignItems: 'center', gap: 6,
-                      padding: '8px 18px', borderRadius: 20, border: 'none',
-                      background: saved ? 'var(--menthe)' : 'var(--verveine)',
-                      color: '#fff', fontSize: '0.875rem', fontWeight: 700,
-                      cursor: saving || !userId ? 'default' : 'pointer',
-                      opacity: !userId ? 0.5 : 1,
-                      transition: 'background 150ms, opacity 150ms',
-                    }}
-                    onMouseEnter={(e) => { if (userId) e.currentTarget.style.background = saved ? '#ef4444' : 'var(--menthe)' }}
-                    onMouseLeave={(e) => { if (userId) e.currentTarget.style.background = saved ? 'var(--menthe)' : 'var(--verveine)' }}
-                  >
-                    {saving ? (
-                      <span style={{ width: 14, height: 14, borderRadius: '50%', border: '2px solid rgba(255,255,255,0.4)', borderTopColor: '#fff', animation: 'spin .7s linear infinite', display: 'inline-block' }} />
-                    ) : saved ? (
-                      <>
-                        <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="3" strokeLinecap="round" strokeLinejoin="round"><polyline points="20 6 9 17 4 12" /></svg>
-                        Saved
-                      </>
-                    ) : (
-                      <>
-                        <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round"><path d="M19 21l-7-5-7 5V5a2 2 0 0 1 2-2h10a2 2 0 0 1 2 2z" /></svg>
-                        Save
-                      </>
-                    )}
-                  </button>
-                )}
-              </div>
-            </div>
 
-            {/* ── MEDIA (dominant, large) ── */}
-            <div style={{ position: 'relative' }}>
-              <div style={{ perspective: '1200px' }}>
-                <div style={{ position: 'relative', transformStyle: 'preserve-3d', transform: flipped ? 'rotateY(180deg)' : 'rotateY(0deg)', transition: 'transform 0.45s ease', cursor: 'pointer' }}>
-                  {/* Front face */}
-                  <div className="pin-detail-hero-media" onClick={() => setFlipped(true)}
-                    style={{ backfaceVisibility: 'hidden', WebkitBackfaceVisibility: 'hidden', overflow: 'hidden', background: 'var(--brume)', position: 'relative' }}
-                  >
-                    {pin.media_type === 'video' ? (
-                      <video ref={videoRef} src={pin.media_url} poster={pin.thumbnail_url} muted loop playsInline controls style={{ width: '100%', height: 'auto', display: 'block', objectFit: 'contain' }} />
-                    ) : (
-                      <Image src={pin.thumbnail_url} alt={pin.title || 'Project preview'} width={900} height={1200} style={{ width: '100%', height: 'auto', display: 'block', objectFit: 'contain' }} unoptimized priority />
-                    )}
-                    <div style={{ position: 'absolute', bottom: 12, left: 14, fontSize: '0.75rem', color: 'rgba(255,255,255,0.9)', fontWeight: 600, letterSpacing: '0.04em', background: 'rgba(0,0,0,0.35)', borderRadius: 8, padding: '4px 10px', backdropFilter: 'blur(4px)' }}>
-                      click to flip
-                    </div>
+                  <div style={{ position: 'relative' }}>
+                    <button
+                      onClick={handleShare}
+                      title="Share"
+                      style={{ ...iconBtnStyle, background: showShare ? 'var(--brume)' : 'transparent', color: showShare ? 'var(--text)' : 'var(--muted)' }}
+                      onMouseEnter={(e) => { e.currentTarget.style.color = 'var(--text)'; e.currentTarget.style.background = 'var(--brume)' }}
+                      onMouseLeave={(e) => { if (!showShare) { e.currentTarget.style.color = 'var(--muted)'; e.currentTarget.style.background = 'transparent' } }}
+                    >
+                      <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+                        <path d="M4 12v8a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2v-8" />
+                        <polyline points="16 6 12 2 8 6" />
+                        <line x1="12" y1="2" x2="12" y2="15" />
+                      </svg>
+                    </button>
+                    {showShare && <ShareDropdown onClose={() => setShowShare(false)} />}
                   </div>
 
-                  {/* Back face */}
-                  <div onClick={() => setFlipped(false)}
-                    style={{ position: 'absolute', inset: 0, transform: 'rotateY(180deg)', backfaceVisibility: 'hidden', WebkitBackfaceVisibility: 'hidden', background: '#fff', padding: '24px 22px', display: 'flex', flexDirection: 'column', gap: 12, overflowY: 'auto', pointerEvents: flipped ? 'auto' : 'none' }}
-                  >
-                    <div style={{ textAlign: 'left', fontSize: '0.75rem', color: 'var(--muted-light)', fontWeight: 600 }}>
-                      ↩ click to flip back
-                    </div>
-                    {categories.length > 0 && (
-                      <div style={{ display: 'flex', flexWrap: 'wrap', gap: 6 }}>
-                        {categories.map((cat) => (
-                          <span key={cat.id} style={{ fontSize: '10px', fontWeight: 700, letterSpacing: '0.08em', color: 'var(--menthe)' }}>{cat.label}</span>
-                        ))}
-                      </div>
-                    )}
-                    <h2 style={{ fontSize: '1.25rem', fontWeight: 800, color: 'var(--text)', lineHeight: 1.3, margin: 0 }}>
-                      {pin.title || 'Untitled'}
-                    </h2>
-                    {pin.description && (
-                      <p style={{ fontSize: '0.9375rem', color: 'var(--muted)', lineHeight: 1.65, margin: 0, whiteSpace: 'pre-wrap' }}>{pin.description}</p>
-                    )}
-                    {/* Visit Live + Repo on back */}
-                    <div style={{ display: 'flex', gap: 10, flexWrap: 'wrap', marginTop: 4 }}>
-                      <a href={pin.live_url} target="_blank" rel="noopener noreferrer" onClick={(e) => e.stopPropagation()}
-                        style={{ flex: 1, minWidth: 100, display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 6, padding: '10px 14px', borderRadius: 14, background: 'var(--menthe)', color: '#fff', fontSize: '0.875rem', fontWeight: 700, textDecoration: 'none', transition: 'opacity 150ms' }}
-                        onMouseEnter={(e) => { e.currentTarget.style.opacity = '0.85' }}
-                        onMouseLeave={(e) => { e.currentTarget.style.opacity = '1' }}
-                      >
-                        <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round"><path d="M18 13v6a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V8a2 2 0 0 1 2-2h6" /><polyline points="15 3 21 3 21 9" /><line x1="10" y1="14" x2="21" y2="3" /></svg>
-                        Visit Live
-                      </a>
-                      {pin.repo_url && (
-                        <a href={pin.repo_url} target="_blank" rel="noopener noreferrer" onClick={(e) => e.stopPropagation()}
-                          style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 6, padding: '10px 14px', borderRadius: 14, border: '1.5px solid var(--border)', background: 'transparent', color: 'var(--text)', fontSize: '0.875rem', fontWeight: 600, textDecoration: 'none', transition: 'border-color 150ms, background 150ms' }}
-                          onMouseEnter={(e) => { e.currentTarget.style.borderColor = 'var(--menthe)'; e.currentTarget.style.background = 'var(--brume)' }}
-                          onMouseLeave={(e) => { e.currentTarget.style.borderColor = 'var(--border)'; e.currentTarget.style.background = 'transparent' }}
-                        >
-                          <svg width="13" height="13" viewBox="0 0 24 24" fill="currentColor"><path d="M12 2C6.477 2 2 6.477 2 12c0 4.418 2.865 8.166 6.839 9.489.5.092.682-.217.682-.482 0-.237-.009-.868-.013-1.703-2.782.604-3.369-1.341-3.369-1.341-.454-1.155-1.11-1.463-1.11-1.463-.908-.62.069-.608.069-.608 1.003.07 1.531 1.03 1.531 1.03.892 1.529 2.341 1.087 2.91.832.092-.647.35-1.088.636-1.338-2.22-.253-4.555-1.11-4.555-4.943 0-1.091.39-1.984 1.029-2.683-.103-.253-.446-1.27.098-2.647 0 0 .84-.269 2.75 1.025A9.578 9.578 0 0 1 12 6.836a9.59 9.59 0 0 1 2.504.337c1.909-1.294 2.747-1.025 2.747-1.025.546 1.377.203 2.394.1 2.647.64.699 1.028 1.592 1.028 2.683 0 3.842-2.339 4.687-4.566 4.935.359.309.678.919.678 1.852 0 1.336-.012 2.415-.012 2.743 0 .267.18.578.688.48C19.138 20.163 22 16.418 22 12c0-5.523-4.477-10-10-10z" /></svg>
-                          Repo
-                        </a>
+                  {pin.linkedin_url && (
+                    <a href={pin.linkedin_url} target="_blank" rel="noopener noreferrer" title="LinkedIn"
+                      style={{ ...iconBtnStyle, textDecoration: 'none' }}
+                      onMouseEnter={(e) => { (e.currentTarget as HTMLElement).style.color = 'var(--text)'; (e.currentTarget as HTMLElement).style.background = 'var(--brume)' }}
+                      onMouseLeave={(e) => { (e.currentTarget as HTMLElement).style.color = 'var(--muted)'; (e.currentTarget as HTMLElement).style.background = 'transparent' }}
+                    >
+                      <svg width="18" height="18" viewBox="0 0 24 24" fill="currentColor"><path d="M16 8a6 6 0 0 1 6 6v7h-4v-7a2 2 0 0 0-2-2 2 2 0 0 0-2 2v7h-4v-7a6 6 0 0 1 6-6z"/><rect x="2" y="9" width="4" height="12"/><circle cx="4" cy="4" r="2"/></svg>
+                    </a>
+                  )}
+                  {pin.tiktok_url && (
+                    <a href={pin.tiktok_url} target="_blank" rel="noopener noreferrer" title="TikTok"
+                      style={{ ...iconBtnStyle, textDecoration: 'none' }}
+                      onMouseEnter={(e) => { (e.currentTarget as HTMLElement).style.color = 'var(--text)'; (e.currentTarget as HTMLElement).style.background = 'var(--brume)' }}
+                      onMouseLeave={(e) => { (e.currentTarget as HTMLElement).style.color = 'var(--muted)'; (e.currentTarget as HTMLElement).style.background = 'transparent' }}
+                    >
+                      <svg width="18" height="18" viewBox="0 0 24 24" fill="currentColor"><path d="M19.59 6.69a4.83 4.83 0 0 1-3.77-4.25V2h-3.45v13.67a2.89 2.89 0 0 1-2.88 2.5 2.89 2.89 0 0 1-2.89-2.89 2.89 2.89 0 0 1 2.89-2.89c.28 0 .54.04.79.1V9.01a6.34 6.34 0 0 0-.79-.05 6.34 6.34 0 0 0-6.34 6.34 6.34 6.34 0 0 0 6.34 6.34 6.34 6.34 0 0 0 6.33-6.34V8.69a8.18 8.18 0 0 0 4.78 1.52V6.76a4.85 4.85 0 0 1-1.01-.07z"/></svg>
+                    </a>
+                  )}
+                  {pin.instagram_url && (
+                    <a href={pin.instagram_url} target="_blank" rel="noopener noreferrer" title="Instagram"
+                      style={{ ...iconBtnStyle, textDecoration: 'none' }}
+                      onMouseEnter={(e) => { (e.currentTarget as HTMLElement).style.color = 'var(--text)'; (e.currentTarget as HTMLElement).style.background = 'var(--brume)' }}
+                      onMouseLeave={(e) => { (e.currentTarget as HTMLElement).style.color = 'var(--muted)'; (e.currentTarget as HTMLElement).style.background = 'transparent' }}
+                    >
+                      <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><rect x="2" y="2" width="20" height="20" rx="5" ry="5"/><path d="M16 11.37A4 4 0 1 1 12.63 8 4 4 0 0 1 16 11.37z"/><line x1="17.5" y1="6.5" x2="17.51" y2="6.5"/></svg>
+                    </a>
+                  )}
+                </div>
+
+                {/* Right: Edit + Save */}
+                <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
+                  {isOwner && (
+                    <button type="button" onClick={handleEditClick} title="Edit pin"
+                      style={{ ...iconBtnStyle }}
+                      onMouseEnter={(e) => { e.currentTarget.style.color = 'var(--text)'; e.currentTarget.style.background = 'var(--brume)' }}
+                      onMouseLeave={(e) => { e.currentTarget.style.color = 'var(--muted)'; e.currentTarget.style.background = 'transparent' }}
+                    >
+                      <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round">
+                        <path d="M11 4H4a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h14a2 2 0 0 0 2-2v-7"/>
+                        <path d="M18.5 2.5a2.121 2.121 0 0 1 3 3L12 15l-4 1 1-4 9.5-9.5z"/>
+                      </svg>
+                    </button>
+                  )}
+                  {userId !== undefined && (
+                    <button
+                      onClick={handleSave}
+                      disabled={saving || !userId}
+                      title={!userId ? 'Sign in to save' : saved ? 'Unsave' : 'Save'}
+                      style={{
+                        display: 'flex', alignItems: 'center', gap: 6,
+                        padding: '8px 18px', borderRadius: 20, border: 'none',
+                        background: saved ? 'var(--menthe)' : 'var(--verveine)',
+                        color: '#fff', fontSize: '0.875rem', fontWeight: 700,
+                        cursor: saving || !userId ? 'default' : 'pointer',
+                        opacity: !userId ? 0.5 : 1,
+                        transition: 'background 150ms, opacity 150ms',
+                      }}
+                      onMouseEnter={(e) => { if (userId) e.currentTarget.style.background = saved ? '#ef4444' : 'var(--menthe)' }}
+                      onMouseLeave={(e) => { if (userId) e.currentTarget.style.background = saved ? 'var(--menthe)' : 'var(--verveine)' }}
+                    >
+                      {saving ? (
+                        <span style={{ width: 14, height: 14, borderRadius: '50%', border: '2px solid rgba(255,255,255,0.4)', borderTopColor: '#fff', animation: 'spin .7s linear infinite', display: 'inline-block' }} />
+                      ) : saved ? (
+                        <>
+                          <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="3" strokeLinecap="round" strokeLinejoin="round"><polyline points="20 6 9 17 4 12" /></svg>
+                          Saved
+                        </>
+                      ) : (
+                        <>
+                          <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round"><path d="M19 21l-7-5-7 5V5a2 2 0 0 1 2-2h10a2 2 0 0 1 2 2z" /></svg>
+                          Save
+                        </>
                       )}
+                    </button>
+                  )}
+                </div>
+              </div>
+
+              {/* ── MEDIA (dominant, large) ── */}
+              <div style={{ position: 'relative' }}>
+                <div style={{ perspective: '1200px' }}>
+                  <div style={{ position: 'relative', transformStyle: 'preserve-3d', transform: flipped ? 'rotateY(180deg)' : 'rotateY(0deg)', transition: 'transform 0.45s ease', cursor: 'pointer' }}>
+                    {/* Front face */}
+                    <div className="pdv-media" onClick={() => setFlipped(true)}
+                      style={{ backfaceVisibility: 'hidden', WebkitBackfaceVisibility: 'hidden', position: 'relative' }}
+                    >
+                      {pin.media_type === 'video' ? (
+                        <video ref={videoRef} src={pin.media_url} poster={pin.thumbnail_url} muted loop playsInline controls style={{ width: '100%', height: 'auto', display: 'block', objectFit: 'contain' }} />
+                      ) : (
+                        <Image src={pin.thumbnail_url} alt={pin.title || 'Project preview'} width={900} height={1200} style={{ width: '100%', height: 'auto', display: 'block', objectFit: 'contain' }} unoptimized priority />
+                      )}
+                      <div style={{ position: 'absolute', bottom: 12, left: 14, fontSize: '0.75rem', color: 'rgba(255,255,255,0.9)', fontWeight: 600, letterSpacing: '0.04em', background: 'rgba(0,0,0,0.35)', borderRadius: 8, padding: '4px 10px', backdropFilter: 'blur(4px)' }}>
+                        click to flip
+                      </div>
+                    </div>
+
+                    {/* Back face */}
+                    <div onClick={() => setFlipped(false)}
+                      style={{ position: 'absolute', inset: 0, transform: 'rotateY(180deg)', backfaceVisibility: 'hidden', WebkitBackfaceVisibility: 'hidden', background: '#fff', padding: '24px 22px', display: 'flex', flexDirection: 'column', gap: 12, overflowY: 'auto', pointerEvents: flipped ? 'auto' : 'none' }}
+                    >
+                      <div style={{ textAlign: 'left', fontSize: '0.75rem', color: 'var(--muted-light)', fontWeight: 600 }}>
+                        ↩ click to flip back
+                      </div>
+                      {categories.length > 0 && (
+                        <div style={{ display: 'flex', flexWrap: 'wrap', gap: 6 }}>
+                          {categories.map((cat) => (
+                            <span key={cat.id} style={{ fontSize: '10px', fontWeight: 700, letterSpacing: '0.08em', color: 'var(--menthe)' }}>{cat.label}</span>
+                          ))}
+                        </div>
+                      )}
+                      <h2 style={{ fontSize: '1.25rem', fontWeight: 800, color: 'var(--text)', lineHeight: 1.3, margin: 0 }}>
+                        {pin.title || 'Untitled'}
+                      </h2>
+                      {pin.description && (
+                        <p style={{ fontSize: '0.9375rem', color: 'var(--muted)', lineHeight: 1.65, margin: 0, whiteSpace: 'pre-wrap' }}>{pin.description}</p>
+                      )}
+                      <div style={{ display: 'flex', gap: 10, flexWrap: 'wrap', marginTop: 4 }}>
+                        <a href={pin.live_url} target="_blank" rel="noopener noreferrer" onClick={(e) => e.stopPropagation()}
+                          style={{ flex: 1, minWidth: 100, display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 6, padding: '10px 14px', borderRadius: 14, background: 'var(--menthe)', color: '#fff', fontSize: '0.875rem', fontWeight: 700, textDecoration: 'none', transition: 'opacity 150ms' }}
+                          onMouseEnter={(e) => { e.currentTarget.style.opacity = '0.85' }}
+                          onMouseLeave={(e) => { e.currentTarget.style.opacity = '1' }}
+                        >
+                          <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round"><path d="M18 13v6a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V8a2 2 0 0 1 2-2h6" /><polyline points="15 3 21 3 21 9" /><line x1="10" y1="14" x2="21" y2="3" /></svg>
+                          Visit Live
+                        </a>
+                        {pin.repo_url && (
+                          <a href={pin.repo_url} target="_blank" rel="noopener noreferrer" onClick={(e) => e.stopPropagation()}
+                            style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 6, padding: '10px 14px', borderRadius: 14, border: '1.5px solid var(--border)', background: 'transparent', color: 'var(--text)', fontSize: '0.875rem', fontWeight: 600, textDecoration: 'none', transition: 'border-color 150ms, background 150ms' }}
+                            onMouseEnter={(e) => { e.currentTarget.style.borderColor = 'var(--menthe)'; e.currentTarget.style.background = 'var(--brume)' }}
+                            onMouseLeave={(e) => { e.currentTarget.style.borderColor = 'var(--border)'; e.currentTarget.style.background = 'transparent' }}
+                          >
+                            <svg width="13" height="13" viewBox="0 0 24 24" fill="currentColor"><path d="M12 2C6.477 2 2 6.477 2 12c0 4.418 2.865 8.166 6.839 9.489.5.092.682-.217.682-.482 0-.237-.009-.868-.013-1.703-2.782.604-3.369-1.341-3.369-1.341-.454-1.155-1.11-1.463-1.11-1.463-.908-.62.069-.608.069-.608 1.003.07 1.531 1.03 1.531 1.03.892 1.529 2.341 1.087 2.91.832.092-.647.35-1.088.636-1.338-2.22-.253-4.555-1.11-4.555-4.943 0-1.091.39-1.984 1.029-2.683-.103-.253-.446-1.27.098-2.647 0 0 .84-.269 2.75 1.025A9.578 9.578 0 0 1 12 6.836a9.59 9.59 0 0 1 2.504.337c1.909-1.294 2.747-1.025 2.747-1.025.546 1.377.203 2.394.1 2.647.64.699 1.028 1.592 1.028 2.683 0 3.842-2.339 4.687-4.566 4.935.359.309.678.919.678 1.852 0 1.336-.012 2.415-.012 2.743 0 .267.18.578.688.48C19.138 20.163 22 16.418 22 12c0-5.523-4.477-10-10-10z" /></svg>
+                            Repo
+                          </a>
+                        )}
+                      </div>
                     </div>
                   </div>
                 </div>
               </div>
-            </div>
 
-            {/* ── LOWER CONTENT (title, author, comments — pushed down) ── */}
-            <div style={{ padding: '20px 18px 18px' }}>
+              {/* ── METADATA AREA (title, author, comments) ── */}
+              <div style={{ padding: '20px 20px 20px' }}>
 
-              {/* Title */}
-              <h1 style={{ fontSize: '1.35rem', fontWeight: 800, color: 'var(--text)', lineHeight: 1.25, margin: '0 0 12px', letterSpacing: '-0.02em' }}>
-                {pin.title}
-              </h1>
+                {/* Title */}
+                <h1 style={{ fontSize: '1.35rem', fontWeight: 800, color: 'var(--text)', lineHeight: 1.25, margin: '0 0 14px', letterSpacing: '-0.02em' }}>
+                  {pin.title}
+                </h1>
 
-              {/* Author */}
-              {pin.profile && (
-                <Link href={`/profile/${pin.profile.username}`} style={{ textDecoration: 'none' }}>
-                  <div
-                    style={{ display: 'flex', alignItems: 'center', gap: 10, padding: '10px 12px', borderRadius: 14, border: '1.5px solid var(--border)', background: 'var(--bg)', transition: 'border-color 150ms, background 150ms', cursor: 'pointer' }}
-                    onMouseEnter={(e) => { e.currentTarget.style.borderColor = 'var(--menthe)'; e.currentTarget.style.background = 'var(--brume)' }}
-                    onMouseLeave={(e) => { e.currentTarget.style.borderColor = 'var(--border)'; e.currentTarget.style.background = 'var(--bg)' }}
-                  >
-                    <div style={{ height: 36, width: 36, borderRadius: '50%', display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: '0.8125rem', fontWeight: 700, flexShrink: 0, overflow: 'hidden', background: 'var(--brume)', color: 'var(--menthe)' }}>
-                      {pin.profile.avatar_url ? (
-                        <Image src={pin.profile.avatar_url} alt={pin.profile.display_name || pin.profile.username} width={36} height={36} style={{ width: '100%', height: '100%', objectFit: 'cover' }} unoptimized />
-                      ) : (
-                        (pin.profile.display_name || pin.profile.username).charAt(0).toUpperCase()
-                      )}
+                {/* Author row */}
+                {pin.profile && (
+                  <Link href={`/profile/${pin.profile.username}`} style={{ textDecoration: 'none', display: 'block', marginBottom: 16 }}>
+                    <div
+                      style={{ display: 'flex', alignItems: 'center', gap: 10, padding: '8px 10px', borderRadius: 12, transition: 'background 150ms', cursor: 'pointer' }}
+                      onMouseEnter={(e) => { e.currentTarget.style.background = 'var(--brume)' }}
+                      onMouseLeave={(e) => { e.currentTarget.style.background = 'transparent' }}
+                    >
+                      <div style={{ height: 36, width: 36, borderRadius: '50%', display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: '0.8125rem', fontWeight: 700, flexShrink: 0, overflow: 'hidden', background: 'var(--brume)', color: 'var(--menthe)' }}>
+                        {pin.profile.avatar_url ? (
+                          <Image src={pin.profile.avatar_url} alt={pin.profile.display_name || pin.profile.username} width={36} height={36} style={{ width: '100%', height: '100%', objectFit: 'cover' }} unoptimized />
+                        ) : (
+                          (pin.profile.display_name || pin.profile.username).charAt(0).toUpperCase()
+                        )}
+                      </div>
+                      <div style={{ minWidth: 0 }}>
+                        <p style={{ margin: 0, fontSize: '0.875rem', fontWeight: 700, color: 'var(--text)', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
+                          {pin.profile.display_name || pin.profile.username}
+                        </p>
+                        <p style={{ margin: 0, fontSize: '0.75rem', color: 'var(--muted)' }}>@{pin.profile.username}</p>
+                      </div>
                     </div>
-                    <div style={{ minWidth: 0 }}>
-                      <p style={{ margin: 0, fontSize: '0.875rem', fontWeight: 700, color: 'var(--text)', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
-                        {pin.profile.display_name || pin.profile.username}
-                      </p>
-                      <p style={{ margin: 0, fontSize: '0.75rem', color: 'var(--muted)' }}>@{pin.profile.username}</p>
-                    </div>
-                    <svg style={{ marginLeft: 'auto', flexShrink: 0, color: 'var(--muted)' }} width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="m9 18 6-6-6-6" /></svg>
-                  </div>
-                </Link>
-              )}
+                  </Link>
+                )}
 
-              {/* ── Divider ── */}
-              <div style={{ height: 1, background: 'var(--text)', opacity: 0.08, margin: '16px 0' }} />
+                {/* Thin divider */}
+                <div style={{ height: 1, background: 'var(--text)', opacity: 0.06, margin: '0 0 16px' }} />
 
-              {/* ── Comments ── */}
-              <CommentSection ref={commentRef} pinId={pin.id} pinOwnerId={pin.owner_id} />
-
+                {/* Comments */}
+                <CommentSection ref={commentRef} pinId={pin.id} pinOwnerId={pin.owner_id} />
+              </div>
             </div>
           </div>
 
+          {/* ══════════════════════════════════════════════════════════════════════
+              BOARD COLUMN — Continuous related pins masonry
+              ══════════════════════════════════════════════════════════════════════ */}
+          <div className="pdv-board">
+            <p className="pdv-board-heading">More like this</p>
+
+            {loadingSimilar ? (
+              <div className="pdv-masonry">
+                {Array.from({ length: 12 }).map((_, i) => (
+                  <div key={i} className="animate-pulse" style={{ height: 140 + (i % 3) * 60, borderRadius: 16, background: 'var(--menthe-light)', opacity: 0.4 }} />
+                ))}
+              </div>
+            ) : similarPins.length > 0 ? (
+              <div className="pdv-masonry">
+                {similarPins.map((p) => (
+                  <div key={p.id}><PinCard pin={p} currentUserId={userId ?? undefined} initialLikeCount={likesMap[p.id]?.likeCount} initialLikedByMe={likesMap[p.id]?.likedByMe} /></div>
+                ))}
+              </div>
+            ) : (
+              <p style={{ color: 'var(--muted)', fontSize: '0.875rem' }}>No similar pins found.</p>
+            )}
+
+            {loadingMore && (
+              <div className="pdv-masonry" style={{ marginTop: 14 }}>
+                {Array.from({ length: 6 }).map((_, i) => (
+                  <div key={`more-${i}`} className="animate-pulse" style={{ height: 140 + (i % 3) * 60, borderRadius: 16, background: 'var(--menthe-light)', opacity: 0.4 }} />
+                ))}
+              </div>
+            )}
+          </div>
         </div>
 
-        {/* ── BOARD ── */}
-        <div className="pin-detail-board">
-          <p style={{ fontSize: '0.8125rem', fontWeight: 600, color: 'var(--muted)', margin: '0 0 14px', letterSpacing: '0.04em', textTransform: 'uppercase' }}>
-            More like this
-          </p>
-          {loadingSimilar ? (
-            <div className="pin-masonry">
-              {Array.from({ length: 12 }).map((_, i) => (
-                <div key={i} className="animate-pulse" style={{ height: 140 + (i % 3) * 60, borderRadius: 16, background: 'var(--menthe-light)', opacity: 0.4 }} />
-              ))}
-            </div>
-          ) : similarPins.length > 0 ? (
-            <div className="pin-masonry">
-              {similarPins.map((p) => (
-                <div key={p.id}><PinCard pin={p} currentUserId={userId ?? undefined} initialLikeCount={likesMap[p.id]?.likeCount} initialLikedByMe={likesMap[p.id]?.likedByMe} /></div>
-              ))}
-            </div>
-          ) : (
-            <p style={{ color: 'var(--muted)', fontSize: '0.875rem' }}>No similar pins found.</p>
-          )}
-          {loadingMore && (
-            <div className="pin-masonry" style={{ marginTop: 14 }}>
-              {Array.from({ length: 6 }).map((_, i) => (
-                <div key={`more-${i}`} className="animate-pulse" style={{ height: 140 + (i % 3) * 60, borderRadius: 16, background: 'var(--menthe-light)', opacity: 0.4 }} />
-              ))}
-            </div>
-          )}
-        </div>
+        {/* Infinite scroll sentinel */}
+        <div ref={sentinelRef} style={{ height: 1 }} />
+
+        {!hasMore && !loadingSimilar && similarPins.length > 0 && (
+          <div style={{ display: 'flex', alignItems: 'center', gap: 16, margin: '24px 0 8px', color: 'var(--muted)' }}>
+            <div style={{ flex: 1, height: 1, background: 'var(--border)' }} />
+            <span style={{ fontSize: '0.8125rem', fontWeight: 600, color: 'var(--muted)', whiteSpace: 'nowrap' }}>You&apos;ve seen it all</span>
+            <div style={{ flex: 1, height: 1, background: 'var(--border)' }} />
+          </div>
+        )}
       </div>
-
-      <div ref={sentinelRef} style={{ height: 1 }} />
-
-      {!hasMore && !loadingSimilar && similarPins.length > 0 && (
-        <div style={{ display: 'flex', alignItems: 'center', gap: 16, margin: '24px 0 8px', color: 'var(--muted)' }}>
-          <div style={{ flex: 1, height: 1, background: 'var(--border)' }} />
-          <span style={{ fontSize: '0.8125rem', fontWeight: 600, color: 'var(--muted)', whiteSpace: 'nowrap' }}>You&apos;ve seen it all</span>
-          <div style={{ flex: 1, height: 1, background: 'var(--border)' }} />
-        </div>
-      )}
     </>
   )
 }

@@ -520,7 +520,7 @@ const CommentSection = forwardRef<CommentSectionHandle, CommentSectionProps>(fun
 
   // ── Render single comment ──────────────────────────────────────────────────
 
-  function renderComment(comment: Comment, isReply = false) {
+  function renderComment(comment: Comment, isReply = false, preview = false) {
     const isOwn = currentProfile?.username === comment.profile.username
     const isPinOwner = !!currentUserId && !!pinOwnerId && currentUserId === pinOwnerId
     const canDelete = (isOwn || isPinOwner || isAdmin) && !comment.id.startsWith('__temp__')
@@ -543,6 +543,7 @@ const CommentSection = forwardRef<CommentSectionHandle, CommentSectionProps>(fun
               {renderBody(comment.body, isReply ? '0.8125rem' : '0.875rem')}
             </div>
 
+            {!preview && (
             <div style={{ display: 'flex', alignItems: 'center', gap: 12, marginTop: 3 }}>
               <span style={{ fontSize: '0.6875rem', color: 'var(--muted-light)', fontWeight: 500 }}>
                 {formatRelativeTime(comment.created_at)}
@@ -590,10 +591,11 @@ const CommentSection = forwardRef<CommentSectionHandle, CommentSectionProps>(fun
                 </div>
               )}
             </div>
+            )}
           </div>
         </div>
 
-        {!isReply && commentReplies.length > 0 && (
+        {!preview && !isReply && commentReplies.length > 0 && (
           <button onClick={() => toggleReplies(comment.id)}
             style={{ display: 'flex', alignItems: 'center', gap: 4, background: 'transparent', border: 'none', padding: '4px 0', marginLeft: 42, cursor: 'pointer', color: 'var(--muted)', fontSize: '0.75rem', fontWeight: 600, transition: 'color 150ms' }}
             onMouseEnter={(e) => { e.currentTarget.style.color = 'var(--menthe)' }}
@@ -606,13 +608,13 @@ const CommentSection = forwardRef<CommentSectionHandle, CommentSectionProps>(fun
           </button>
         )}
 
-        {!isReply && isExpanded && (
+        {!preview && !isReply && isExpanded && (
           <div style={{ display: 'flex', flexDirection: 'column', gap: 12, marginTop: 4 }}>
             {commentReplies.map(r => renderComment(r, true))}
           </div>
         )}
 
-        {!isReply && isReplying && (
+        {!preview && !isReply && isReplying && (
           <InlineReplyInput pinId={pinId} parentId={comment.id} currentProfile={currentProfile} onReplyPosted={handleReplyPosted} onCancel={() => setReplyingTo(null)} />
         )}
       </div>
@@ -668,7 +670,7 @@ const CommentSection = forwardRef<CommentSectionHandle, CommentSectionProps>(fun
       {/* Preview: show top comment when collapsed */}
       {collapsed && !loading && comments.length > 0 && (
         <div style={{ marginTop: 8, marginBottom: 4 }}>
-          {renderComment(comments[0])}
+          {renderComment(comments[0], false, true)}
         </div>
       )}
 
