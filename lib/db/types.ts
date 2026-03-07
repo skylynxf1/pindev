@@ -96,8 +96,15 @@ export type DbComment = {
   body: string
   created_at: string
   updated_at: string
+  parent_comment_id: string | null
 }
 
 export type DbCommentWithProfile = DbComment & {
   profile: Pick<DbProfile, 'username' | 'display_name' | 'avatar_url'>
+}
+
+export type DbCommentLike = {
+  comment_id: string
+  user_id: string
+  created_at: string
 }

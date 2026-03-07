@@ -30,7 +30,7 @@ export async function DELETE(
   // 2. Fetch comment to check ownership
   const { data: comment, error: fetchError } = await supabase
     .from('pin_comments')
-    .select('id, user_id')
+    .select('id, user_id, parent_comment_id')
     .eq('id', commentId)
     .eq('pin_id', pinId)
     .maybeSingle()
@@ -42,15 +42,24 @@ export async function DELETE(
 
   if (!comment) return err('Comment not found', 404)
 
-  const isOwner = comment.user_id === user.id
+  // 3. Check permissions: comment author, pin owner, or admin
+  const isCommentAuthor = comment.user_id === user.id
+
+  // Check if the user owns the pin this comment is on
+  const { data: pin } = await supabase
+    .from('pins')
+    .select('owner_id')
+    .eq('id', pinId)
+    .maybeSingle()
+  const isPinOwner = !!pin && pin.owner_id === user.id
+
   const isAdmin = await requireAdmin(request)
 
-  // 3. Only owner or admin may delete
-  if (!isOwner && !isAdmin) return err('Forbidden', 403)
+  if (!isCommentAuthor && !isPinOwner && !isAdmin) return err('Forbidden', 403)
 
   // 4. Delete — use admin client when deleting on behalf of another user so
   //    RLS ("comments_delete_own") doesn't block the operation.
-  const deleteClient = isOwner ? supabase : createAdminClient()
+  const deleteClient = isCommentAuthor ? supabase : createAdminClient()
 
   const { error: deleteError } = await deleteClient
     .from('pin_comments')

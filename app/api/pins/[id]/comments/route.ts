@@ -25,16 +25,17 @@ function normaliseProfile(raw: unknown): DbCommentWithProfile['profile'] | null 
   }
 }
 
-function normaliseComment(row: Record<string, unknown>): DbCommentWithProfile | null {
+function normaliseComment(row: Record<string, unknown>) {
   const profile = normaliseProfile(row.profiles)
   if (!profile) return null
   return {
-    id:         row.id         as string,
-    pin_id:     row.pin_id     as string,
-    user_id:    row.user_id    as string,
-    body:       row.body       as string,
-    created_at: row.created_at as string,
-    updated_at: row.updated_at as string,
+    id:                row.id                as string,
+    pin_id:            row.pin_id            as string,
+    user_id:           row.user_id           as string,
+    body:              row.body              as string,
+    created_at:        row.created_at        as string,
+    updated_at:        row.updated_at        as string,
+    parent_comment_id: (row.parent_comment_id as string | null) ?? null,
     profile,
   }
 }
@@ -45,7 +46,6 @@ async function checkRateLimit(
   supabase: Awaited<ReturnType<typeof createClient>>,
   userId: string,
 ): Promise<{ limited: boolean; message?: string }> {
-  // Per-minute: max 3 comments
   const { count: minuteCount, error: e1 } = await supabase
     .from('pin_comments')
     .select('*', { count: 'exact', head: true })
@@ -59,7 +59,6 @@ async function checkRateLimit(
     }
   }
 
-  // Per-day: max 20 comments
   const { count: dayCount, error: e2 } = await supabase
     .from('pin_comments')
     .select('*', { count: 'exact', head: true })
@@ -77,7 +76,6 @@ async function checkRateLimit(
 }
 
 // ── GET /api/pins/[id]/comments ───────────────────────────────────────────────
-// Public — no auth required. Returns comments on a published pin, newest first.
 
 export async function GET(
   request: NextRequest,
@@ -86,7 +84,6 @@ export async function GET(
   const { id } = await params
   const supabase = await createClient()
 
-  // Verify the pin exists and is published
   const { data: pin } = await supabase
     .from('pins')
     .select('id')
@@ -99,13 +96,16 @@ export async function GET(
   const { searchParams } = new URL(request.url)
   const offset = Math.max(0, parseInt(searchParams.get('offset') ?? '0', 10))
   const limit  = Math.min(100, Math.max(1, parseInt(searchParams.get('limit') ?? '30', 10)))
+  const sort   = searchParams.get('sort') ?? 'most_relevant'
 
+  const { data: { user } } = await supabase.auth.getUser()
+
+  // Use * to avoid breakage if parent_comment_id column doesn't exist yet
   const { data: rows, error: queryError } = await supabase
     .from('pin_comments')
-    .select('id, pin_id, user_id, body, created_at, updated_at, profiles ( username, display_name, avatar_url )')
+    .select('*, profiles!user_id ( username, display_name, avatar_url )')
     .eq('pin_id', id)
     .order('created_at', { ascending: false })
-    .range(offset, offset + limit)  // request limit+1 to detect hasMore
 
   if (queryError) {
     console.error('[GET /api/pins/[id]/comments]', queryError.message)
@@ -113,20 +113,122 @@ export async function GET(
   }
 
   const allRows = (rows ?? []) as unknown as Record<string, unknown>[]
-  const hasMore = allRows.length > limit
-  const page    = hasMore ? allRows.slice(0, limit) : allRows
-
-  const comments = page
+  const allComments = allRows
     .map(normaliseComment)
-    .filter((c): c is DbCommentWithProfile => c !== null)
-    // Strip user_id from the public response — only internal code needs it
-    .map(({ user_id: _uid, updated_at: _upd, ...safe }) => safe)
+    .filter((c): c is NonNullable<ReturnType<typeof normaliseComment>> => c !== null)
 
-  return ok({ comments, hasMore })
+  const commentIds = allComments.map(c => c.id)
+
+  // Fetch like counts — wrapped in try/catch so it degrades gracefully
+  // if comment_likes table doesn't exist yet
+  const likeCountMap = new Map<string, number>()
+  const userLikedSet = new Set<string>()
+
+  if (commentIds.length > 0) {
+    try {
+      const { data: likeCounts } = await supabase
+        .from('comment_likes')
+        .select('comment_id')
+        .in('comment_id', commentIds)
+
+      for (const row of (likeCounts ?? [])) {
+        const cid = (row as { comment_id: string }).comment_id
+        likeCountMap.set(cid, (likeCountMap.get(cid) ?? 0) + 1)
+      }
+
+      if (user) {
+        const { data: userLikes } = await supabase
+          .from('comment_likes')
+          .select('comment_id')
+          .eq('user_id', user.id)
+          .in('comment_id', commentIds)
+
+        for (const row of (userLikes ?? [])) {
+          userLikedSet.add((row as { comment_id: string }).comment_id)
+        }
+      }
+    } catch {
+      // comment_likes table may not exist yet — degrade gracefully (0 likes)
+    }
+  }
+
+  // Separate top-level and replies
+  const topLevel = allComments.filter(c => !c.parent_comment_id)
+  const replies  = allComments.filter(c => c.parent_comment_id)
+
+  // Count replies per parent
+  const replyCountMap = new Map<string, number>()
+  for (const r of replies) {
+    const pid = r.parent_comment_id!
+    replyCountMap.set(pid, (replyCountMap.get(pid) ?? 0) + 1)
+  }
+
+  // Sort top-level comments
+  const sorted = [...topLevel]
+  const now = Date.now()
+
+  switch (sort) {
+    case 'newest':
+      sorted.sort((a, b) => new Date(b.created_at).getTime() - new Date(a.created_at).getTime())
+      break
+    case 'oldest':
+      sorted.sort((a, b) => new Date(a.created_at).getTime() - new Date(b.created_at).getTime())
+      break
+    case 'most_liked':
+      sorted.sort((a, b) => {
+        const la = likeCountMap.get(a.id) ?? 0
+        const lb = likeCountMap.get(b.id) ?? 0
+        if (lb !== la) return lb - la
+        return new Date(b.created_at).getTime() - new Date(a.created_at).getTime()
+      })
+      break
+    case 'most_relevant':
+    default: {
+      const YEAR_MS = 365 * 24 * 60 * 60 * 1000
+      sorted.sort((a, b) => {
+        const scoreA =
+          (likeCountMap.get(a.id) ?? 0) * 5 +
+          (replyCountMap.get(a.id) ?? 0) * 2 +
+          Math.max(0, 1 - (now - new Date(a.created_at).getTime()) / YEAR_MS)
+        const scoreB =
+          (likeCountMap.get(b.id) ?? 0) * 5 +
+          (replyCountMap.get(b.id) ?? 0) * 2 +
+          Math.max(0, 1 - (now - new Date(b.created_at).getTime()) / YEAR_MS)
+        if (scoreB !== scoreA) return scoreB - scoreA
+        return new Date(b.created_at).getTime() - new Date(a.created_at).getTime()
+      })
+      break
+    }
+  }
+
+  // Paginate top-level
+  const hasMore = sorted.length > offset + limit
+  const page = sorted.slice(offset, offset + limit)
+  const pageIds = new Set(page.map(c => c.id))
+
+  // Collect replies for page comments (sorted oldest-first)
+  const pageReplies = replies
+    .filter(r => pageIds.has(r.parent_comment_id!))
+    .sort((a, b) => new Date(a.created_at).getTime() - new Date(b.created_at).getTime())
+
+  function toPublic(c: NonNullable<ReturnType<typeof normaliseComment>>) {
+    const { user_id: _uid, updated_at: _upd, ...safe } = c
+    return {
+      ...safe,
+      like_count: likeCountMap.get(c.id) ?? 0,
+      reply_count: replyCountMap.get(c.id) ?? 0,
+      user_liked: userLikedSet.has(c.id),
+    }
+  }
+
+  const comments = page.map(toPublic)
+  const repliesOut = pageReplies.map(toPublic)
+  const totalCount = topLevel.length
+
+  return ok({ comments, replies: repliesOut, hasMore, totalCount })
 }
 
 // ── POST /api/pins/[id]/comments ──────────────────────────────────────────────
-// Requires authentication. Validates, moderates, rate-limits, then inserts.
 
 export async function POST(
   request: NextRequest,
@@ -134,23 +236,20 @@ export async function POST(
 ) {
   const supabase = await createClient()
 
-  // 1. Auth
   const { data: { user }, error: authError } = await supabase.auth.getUser()
   if (authError || !user) return err('Unauthorized', 401)
 
   const { id } = await params
 
-  // 2. Verify pin is published
-  const { data: pin } = await supabase
+  const { data: pinData } = await supabase
     .from('pins')
     .select('id')
     .eq('id', id)
     .eq('is_published', true)
     .maybeSingle()
 
-  if (!pin) return err('Pin not found', 404)
+  if (!pinData) return err('Pin not found', 404)
 
-  // 3. Parse JSON body
   let rawBody: unknown
   try {
     rawBody = await request.json()
@@ -158,31 +257,51 @@ export async function POST(
     return err('Invalid request body', 400)
   }
 
-  // 4. Zod validation
   const parsed = createCommentSchema.safeParse(rawBody)
   if (!parsed.success) {
     const first = parsed.error.issues[0]
     return err(first?.message ?? 'Invalid input', 400)
   }
 
-  const { body } = parsed.data
+  const { body, parent_comment_id } = parsed.data
 
-  // 5. Moderation — runs before touching the DB
+  // If replying, verify parent exists and belongs to this pin and is top-level
+  if (parent_comment_id) {
+    const { data: parent } = await supabase
+      .from('pin_comments')
+      .select('*, profiles!user_id ( username, display_name, avatar_url )')
+      .eq('id', parent_comment_id)
+      .eq('pin_id', id)
+      .maybeSingle()
+
+    if (!parent) return err('Parent comment not found', 404)
+    const parentRow = parent as unknown as Record<string, unknown>
+    if (parentRow.parent_comment_id) return err('Cannot reply to a reply', 400)
+  }
+
   const modResult = moderateComment(body)
   if (!modResult.ok) {
     return err(moderationMessage(modResult.reason), 422)
   }
 
-  // 6. Rate limiting — DB-backed, no extra packages required
   const rateCheck = await checkRateLimit(supabase, user.id)
   if (rateCheck.limited) {
     return err(rateCheck.message ?? 'Too many requests', 429)
   }
 
-  // 7. Insert — user_id is ALWAYS from the verified session, never from the request body
+  // Build insert data — only include parent_comment_id if provided
+  const insertData: Record<string, string> = {
+    pin_id: id,
+    user_id: user.id,
+    body,
+  }
+  if (parent_comment_id) {
+    insertData.parent_comment_id = parent_comment_id
+  }
+
   const { data: inserted, error: insertError } = await supabase
     .from('pin_comments')
-    .insert({ pin_id: id, user_id: user.id, body })
+    .insert(insertData)
     .select('id')
     .single()
 
@@ -191,16 +310,42 @@ export async function POST(
     return err('Failed to post comment. Please try again.', 500)
   }
 
-  // 8. Fetch the created row with profile data for the response
+  // Re-fetch the created row with profile data using * to be resilient
   const { data: commentRow, error: fetchError } = await supabase
     .from('pin_comments')
-    .select('id, pin_id, user_id, body, created_at, updated_at, profiles ( username, display_name, avatar_url )')
+    .select('*, profiles!user_id ( username, display_name, avatar_url )')
     .eq('id', inserted.id)
     .single()
 
   if (fetchError || !commentRow) {
-    console.error('[POST /api/pins/[id]/comments] fetch error:', fetchError?.message)
-    return err('Comment posted but failed to load it. Please refresh.', 500)
+    // Fallback: construct the comment from known data + fetch profile separately
+    const { data: profileRow } = await supabase
+      .from('profiles')
+      .select('username, display_name, avatar_url')
+      .eq('id', user.id)
+      .single()
+
+    const profile = profileRow
+      ? {
+          username: profileRow.username ?? '',
+          display_name: profileRow.display_name ?? '',
+          avatar_url: profileRow.avatar_url ?? null,
+        }
+      : { username: '', display_name: '', avatar_url: null }
+
+    return ok({
+      comment: {
+        id: inserted.id,
+        pin_id: id,
+        body,
+        created_at: new Date().toISOString(),
+        parent_comment_id: parent_comment_id ?? null,
+        profile,
+        like_count: 0,
+        reply_count: 0,
+        user_liked: false,
+      },
+    }, 201)
   }
 
   const comment = normaliseComment(commentRow as unknown as Record<string, unknown>)
@@ -208,8 +353,14 @@ export async function POST(
     return err('Comment posted but failed to load it. Please refresh.', 500)
   }
 
-  // Strip user_id from the response (not needed by the client)
   const { user_id: _uid, updated_at: _upd, ...safeComment } = comment
 
-  return ok({ comment: safeComment }, 201)
+  return ok({
+    comment: {
+      ...safeComment,
+      like_count: 0,
+      reply_count: 0,
+      user_liked: false,
+    },
+  }, 201)
 }

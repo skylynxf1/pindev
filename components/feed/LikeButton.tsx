@@ -9,6 +9,8 @@ interface LikeButtonProps {
   initialLikedByMe?: boolean
   currentUserId?: string
   onAuthRequired?: () => void
+  /** Icon size in px (default 13) */
+  iconSize?: number
 }
 
 export default function LikeButton({
@@ -17,6 +19,7 @@ export default function LikeButton({
   initialLikedByMe,
   currentUserId,
   onAuthRequired,
+  iconSize = 13,
 }: LikeButtonProps) {
   const [likeCount, setLikeCount] = useState(initialLikeCount ?? 0)
   const [liked, setLiked] = useState(initialLikedByMe ?? false)
@@ -107,8 +110,8 @@ export default function LikeButton({
       }}
     >
       <svg
-        width="13"
-        height="13"
+        width={iconSize}
+        height={iconSize}
         viewBox="0 0 24 24"
         fill={liked ? 'currentColor' : 'none'}
         stroke="currentColor"
