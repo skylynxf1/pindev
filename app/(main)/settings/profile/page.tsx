@@ -133,6 +133,7 @@ function CropModal({
   const [zoom, setZoom] = useState(1)
   const zoomRef = useRef(1)
   const [pan, setPan] = useState({ x: 0, y: 0 })
+  const [dragging, setDragging] = useState(false)
   const panRef = useRef({ x: 0, y: 0 })
   const dragRef = useRef<{ sx: number; sy: number; spx: number; spy: number } | null>(null)
 
@@ -186,6 +187,7 @@ function CropModal({
 
   function onMouseDown(e: React.MouseEvent) {
     dragRef.current = { sx: e.clientX, sy: e.clientY, spx: panRef.current.x, spy: panRef.current.y }
+    setDragging(true)
   }
   function onMouseMove(e: React.MouseEvent) {
     if (!dragRef.current) return
@@ -193,7 +195,7 @@ function CropModal({
     panRef.current = p
     setPan(p)
   }
-  function onMouseUp() { dragRef.current = null }
+  function onMouseUp() { dragRef.current = null; setDragging(false) }
 
   function handleApply() {
     const img = imgRef.current
@@ -232,7 +234,7 @@ function CropModal({
           ref={canvasRef}
           width={D}
           height={D}
-          style={{ borderRadius: '50%', cursor: dragRef.current ? 'grabbing' : 'grab', touchAction: 'none', display: 'block' }}
+          style={{ borderRadius: '50%', cursor: dragging ? 'grabbing' : 'grab', touchAction: 'none', display: 'block' }}
           onWheel={onWheel}
           onMouseDown={onMouseDown}
           onMouseMove={onMouseMove}

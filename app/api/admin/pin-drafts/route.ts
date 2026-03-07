@@ -17,7 +17,7 @@ export async function POST(req: Request) {
     repo_url: body.repo_url ? String(body.repo_url).trim() : null,
     image_url: body.image_url ? String(body.image_url).trim() : null,
     video_url: body.video_url ? String(body.video_url).trim() : null,
-    tags: Array.isArray(body.tags) ? body.tags.map((t: any) => String(t).trim().toLowerCase()).filter(Boolean) : [],
+    tags: Array.isArray(body.tags) ? body.tags.map((t: unknown) => String(t).trim().toLowerCase()).filter(Boolean) : [],
     source_url: body.source_url ? String(body.source_url).trim() : null,
     status: "PENDING",
   };
