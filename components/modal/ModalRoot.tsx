@@ -49,14 +49,23 @@ export default function ModalRoot({ children, onClose }: ModalRootProps) {
       aria-modal="true"
       role="dialog"
     >
+      <style>{`
+        .modal-centering {
+          display: flex;
+          min-height: 100%;
+          align-items: flex-start;
+          justify-content: center;
+          padding: 32px;
+        }
+        @media (max-width: 640px) {
+          .modal-centering {
+            padding: 12px;
+            align-items: flex-end;
+          }
+        }
+      `}</style>
       {/* Centering wrapper — click-through to backdrop handled above */}
-      <div style={{
-        display: 'flex',
-        minHeight: '100%',
-        alignItems: 'flex-start',
-        justifyContent: 'center',
-        padding: '32px 32px',
-      }}>
+      <div className="modal-centering">
         {children}
       </div>
     </div>,

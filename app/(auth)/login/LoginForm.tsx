@@ -45,9 +45,15 @@ export default function LoginForm({ next }: Props) {
 
   return (
     <div style={{ display: 'flex', minHeight: '100vh', fontFamily: 'var(--font-sans)' }}>
+      <style>{`
+        @media (max-width: 768px) {
+          .login-left-panel { display: none !important; }
+          .login-right-panel { padding: 32px 24px !important; }
+        }
+      `}</style>
 
       {/* ── LEFT PANEL ── */}
-      <div style={{
+      <div className="login-left-panel" style={{
         flex: '0 0 52%',
         background: 'linear-gradient(150deg, #eafaf6 0%, #C2F2E4 55%, #aeeada 100%)',
         display: 'flex',
@@ -167,7 +173,7 @@ export default function LoginForm({ next }: Props) {
       </div>
 
       {/* ── RIGHT PANEL ── */}
-      <div style={{
+      <div className="login-right-panel" style={{
         flex: 1,
         background: '#fff',
         display: 'flex',

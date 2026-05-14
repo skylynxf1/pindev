@@ -19,8 +19,15 @@ export default function PinModal({ pinId }: PinModalProps) {
 
   return (
     <ModalRoot onClose={handleClose}>
+      <style>{`
+        .pin-modal-inner { padding: 28px 28px 32px; }
+        @media (max-width: 640px) {
+          .pin-modal-wrapper { border-radius: 20px !important; max-width: calc(100vw - 24px) !important; }
+          .pin-modal-inner { padding: 16px 16px 24px; }
+        }
+      `}</style>
       <div
-        className="relative w-full"
+        className="relative w-full pin-modal-wrapper"
         style={{
           maxWidth: 'calc(100vw - 64px)',
           borderRadius: 24,
@@ -138,7 +145,7 @@ export default function PinModal({ pinId }: PinModalProps) {
 
         {/* ── Pin detail content ── */}
         {!loading && pin && (
-          <div style={{ padding: '28px 28px 32px' }}>
+          <div className="pin-modal-inner">
             <PinDetailView pin={pin} />
           </div>
         )}

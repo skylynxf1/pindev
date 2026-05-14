@@ -135,7 +135,7 @@ export default function FollowListModal({ type, username, isOwnProfile, currentU
         </div>
 
         {/* Body */}
-        <div style={{ maxHeight: 420, overflowY: 'auto', padding: '8px 0' }}>
+        <div style={{ maxHeight: 'min(420px, 60vh)', overflowY: 'auto', padding: '8px 0' }}>
           {loading ? (
             <div style={{ padding: '32px 24px', textAlign: 'center', color: 'var(--muted)', fontSize: '0.875rem' }}>
               Loading…
