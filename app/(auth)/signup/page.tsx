@@ -91,9 +91,15 @@ export default function SignupPage() {
 
   return (
     <div style={{ display: 'flex', minHeight: '100vh', fontFamily: 'var(--font-sans)' }}>
+      <style>{`
+        @media (max-width: 768px) {
+          .signup-left-panel { display: none !important; }
+          .signup-right-panel { padding: 32px 24px !important; }
+        }
+      `}</style>
 
       {/* ── LEFT PANEL ── */}
-      <div style={{
+      <div className="signup-left-panel" style={{
         flex: '0 0 52%',
         background: 'linear-gradient(150deg, #eafaf6 0%, #C2F2E4 55%, #aeeada 100%)',
         display: 'flex',
@@ -198,7 +204,7 @@ export default function SignupPage() {
       </div>
 
       {/* ── RIGHT PANEL ── */}
-      <div style={{
+      <div className="signup-right-panel" style={{
         flex: 1,
         background: '#fff',
         display: 'flex',

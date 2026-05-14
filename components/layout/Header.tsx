@@ -477,6 +477,102 @@ function MobileSearchDrawer({ onClose }: { onClose: () => void }) {
 }
 
 /* ─────────────────────────────────────────────────────────────
+   MOBILE BOTTOM NAV
+   ───────────────────────────────────────────────────────────── */
+function MobileBottomNav({ pathname, user }: { pathname: string; user: User | null }) {
+  const items = [
+    {
+      href: '/',
+      label: 'Home',
+      active: pathname === '/',
+      icon: (
+        <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+          <path d="m3 9 9-7 9 7v11a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2z"/>
+          <polyline points="9 22 9 12 15 12 15 22"/>
+        </svg>
+      ),
+    },
+    {
+      href: '/create',
+      label: 'Create',
+      active: pathname === '/create' || pathname === '/upload',
+      icon: (
+        <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+          <circle cx="12" cy="12" r="10"/>
+          <path d="M12 8v8M8 12h8"/>
+        </svg>
+      ),
+    },
+    {
+      href: user ? '/saved' : '/login',
+      label: 'Saved',
+      active: pathname === '/saved',
+      icon: (
+        <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+          <path d="M19 21l-7-5-7 5V5a2 2 0 0 1 2-2h10a2 2 0 0 1 2 2z"/>
+        </svg>
+      ),
+    },
+    {
+      href: '/about',
+      label: 'About',
+      active: pathname === '/about',
+      icon: (
+        <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+          <circle cx="12" cy="12" r="10"/>
+          <path d="M12 16v-4M12 8h.01"/>
+        </svg>
+      ),
+    },
+  ]
+
+  return (
+    <nav
+      aria-label="Mobile navigation"
+      style={{
+        position: 'fixed',
+        bottom: 0,
+        left: 0,
+        right: 0,
+        zIndex: 40,
+        height: 60,
+        background: 'var(--bg)',
+        borderTop: '1px solid var(--border)',
+        display: 'flex',
+        alignItems: 'center',
+        justifyContent: 'space-around',
+        padding: '0 4px',
+        boxShadow: '0 -2px 12px rgb(0 0 0 / .06)',
+      }}
+    >
+      {items.map(item => (
+        <Link
+          key={item.href}
+          href={item.href}
+          style={{
+            display: 'flex',
+            flexDirection: 'column',
+            alignItems: 'center',
+            gap: 3,
+            flex: 1,
+            padding: '6px 0',
+            textDecoration: 'none',
+            color: item.active ? 'var(--menthe)' : 'var(--muted)',
+            fontSize: '0.65rem',
+            fontWeight: item.active ? 700 : 500,
+            letterSpacing: '0.02em',
+            transition: 'color 120ms',
+          }}
+        >
+          {item.icon}
+          {item.label}
+        </Link>
+      ))}
+    </nav>
+  )
+}
+
+/* ─────────────────────────────────────────────────────────────
    MAIN HEADER
    ───────────────────────────────────────────────────────────── */
 export default function Header() {
@@ -620,6 +716,12 @@ export default function Header() {
       </header>
 
       {mobileSearch && <MobileSearchDrawer onClose={() => setMobileSearch(false)} />}
+
+      {isMobile && <MobileBottomNav pathname={pathname} user={user} />}
+
+      {isMobile && (
+        <style>{`body { padding-bottom: 60px; }`}</style>
+      )}
     </>
   )
 }
